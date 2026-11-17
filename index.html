@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculadora de Tarimas</title>
+<meta name="theme-color" content="#0d1417">
+<meta name="description" content="Calculadora y control de cajas paletizadas por tarima, delivery y destino.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tarimas">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0d1417; --panel:#152025; --panel2:#1b2a30; --line:#28414a;
+  --txt:#e6f1f3; --mut:#8aa5ad; --acc:#00a3ad; --acc2:#3fd6c9; --warn:#f2b134; --bad:#ef5b5b; --ok:#4cd07d;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+svg.i{width:1.1em;height:1.1em;vertical-align:-.18em;flex:none}
+header{padding:12px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{width:44px;height:44px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--acc2)}
+.logo img{width:100%;height:100%;object-fit:contain}
+.logo svg{width:30px;height:30px}
+header .ttl h1{font-size:18px;margin:0;letter-spacing:.5px}
+header .ttl div{font-size:12px;color:var(--mut)}
+header .sp{flex:1}
+main{flex:1;display:grid;grid-template-columns:340px 1fr;gap:16px;padding:16px;max-width:1200px;width:100%;margin:0 auto}
+@media (max-width:820px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--acc2);margin:0 0 10px;display:flex;align-items:center;gap:6px}
+/* calculadora */
+.screen{background:#081014;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:right;font-family:'JetBrains Mono',monospace;margin-bottom:10px}
+.screen .expr{color:var(--mut);font-size:13px;min-height:18px;word-break:break-all}
+.screen .val{font-size:34px;font-weight:700;word-break:break-all}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.keys button{font-family:'JetBrains Mono',monospace;font-size:18px;padding:14px 0;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);cursor:pointer;transition:.1s}
+.keys button:active{transform:scale(.96)}
+.keys .op{color:var(--acc2)}
+.keys .fn{color:var(--warn);font-size:15px}
+.keys .eq{background:var(--acc);color:#fff;border-color:var(--acc)}
+.keys .wide{grid-column:span 2}
+.send{margin-top:10px;width:100%}
+.hist{margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--mut);max-height:110px;overflow:auto}
+.hist div{padding:3px 0;border-bottom:1px dashed var(--line);cursor:pointer}
+.hist div:hover{color:var(--txt)}
+/* formularios */
+label small{text-transform:none;letter-spacing:0;opacity:.7}
+label{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+input{width:100%;background:#0a1215;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px;font-family:'JetBrains Mono',monospace;font-size:15px}
+input:focus{outline:none;border-color:var(--acc)}
+.row{display:grid;gap:10px;margin-bottom:10px}
+.r4{grid-template-columns:1.4fr 1fr 1fr 1fr}
+.r3{grid-template-columns:1fr 1fr 1fr}
+.r2{grid-template-columns:1fr 1fr}
+@media (max-width:560px){.r4,.r3{grid-template-columns:1fr 1fr}}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:10px 14px;font-weight:600;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;gap:6px}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+.btn.danger{background:transparent;border:1px solid var(--bad);color:var(--bad)}
+.btn.pdf{background:#c2410c}
+.btn.sm{padding:6px 10px;font-size:12px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.nodl .pdfbtn{display:none}
+.pallet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.pid{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;display:flex;align-items:center;gap:8px}
+.pid svg{color:var(--acc2)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--panel2);border-radius:10px;padding:10px;text-align:center}
+.stat svg{color:var(--acc2);width:20px;height:20px}
+.stat b{display:block;font-family:'JetBrains Mono',monospace;font-size:24px}
+.stat span{font-size:11px;color:var(--mut);text-transform:uppercase}
+.bar{height:12px;background:#0a1215;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));transition:width .3s}
+.bar.full i{background:var(--ok)} .bar.over i{background:var(--bad)}
+.barlbl{display:flex;justify-content:space-between;font-size:12px;color:var(--mut);margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+th{text-align:left;font-size:11px;color:var(--mut);text-transform:uppercase;font-weight:600;padding:6px;border-bottom:1px solid var(--line)}
+td{padding:8px 6px;border-bottom:1px solid var(--line);font-family:'JetBrains Mono',monospace}
+td.n,th.n{text-align:right}
+.x{background:none;border:0;color:var(--bad);cursor:pointer;font-size:16px}
+.empty{color:var(--mut);text-align:center;padding:18px;font-size:13px}
+.closed{margin-top:16px}
+.closed details{background:var(--panel2);border-radius:10px;padding:10px;margin-bottom:8px}
+.closed summary{cursor:pointer;font-family:'JetBrains Mono',monospace}
+.group{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px}
+.group-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.group-h b{font-family:'JetBrains Mono',monospace;color:var(--acc2);display:flex;align-items:center;gap:6px}
+.group-h span{font-size:12px;color:var(--mut)}
+.group.nodel .group-h b{color:var(--mut)}
+.dest{border:1px solid var(--line);border-radius:14px;padding:10px;margin-bottom:14px;background:rgba(0,163,173,.04)}
+.dest-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.dest-h b{font-size:16px;display:flex;align-items:center;gap:6px}
+.dest-h span{font-size:12px;color:var(--mut)}
+.done .dest{background:rgba(76,208,125,.05);border-color:#2e5a3f}
+.badge{font-size:11px;background:#1f4d33;color:var(--ok);padding:2px 8px;border-radius:20px;font-family:Inter,sans-serif;font-weight:600}
+.btn.okb{background:#1f7a46}
+.people{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin:6px 0}
+.people span{display:flex;align-items:center;gap:4px}
+/* fotos */
+.photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.ph{position:relative;width:76px;height:76px;border-radius:8px;overflow:hidden;border:1px solid var(--line);cursor:zoom-in;background:#0a1215}
+.ph img{width:100%;height:100%;object-fit:cover}
+.ph button{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border:0;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;line-height:22px;padding:0}
+.addph{width:76px;height:76px;border-radius:8px;border:1px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mut);font-size:11px;cursor:pointer;gap:4px}
+.addph:hover{border-color:var(--acc);color:var(--acc2)}
+.addph svg{width:22px;height:22px}
+.inbtn{display:flex;gap:6px}
+.inbtn input{flex:1;min-width:0}
+.scanb{flex:none;width:42px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--acc2);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.scanb:hover{border-color:var(--acc)}
+.scanb svg{width:20px;height:20px}
+.scanb.busy{opacity:.5;pointer-events:none}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chips:empty{display:none}
+.chip{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:20px;padding:5px 10px;font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer}
+.chip:hover{border-color:var(--acc);color:var(--acc2)}
+.chip small{color:var(--mut);font-family:Inter,sans-serif}
+select{width:100%;background:#0a1215;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px;font-size:14px}
+.pdesc{font-size:11px;color:var(--mut);font-family:Inter,sans-serif;display:block}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--acc);color:#fff;padding:10px 16px;border-radius:8px;opacity:0;transition:.3s;pointer-events:none;font-size:14px;z-index:50}
+.toast.on{opacity:1}
+.hint{font-size:12px;color:var(--mut);margin-top:6px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}
+.modal.on{display:flex}
+.modal .card{max-width:380px;width:100%}
+#editModal .card{max-width:700px;max-height:92vh;overflow:auto}
+#lightbox img{max-width:95vw;max-height:88vh;border-radius:10px}
+.eitems input{padding:6px;font-size:13px}
+.eitems td{padding:4px}
+.setlogo{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.setlogo .logo{width:64px;height:64px}
+footer{text-align:center;padding:14px;color:var(--mut);font-size:12px;border-top:1px solid var(--line)}
+footer b{color:var(--acc2)}
+</style>
+</head>
+<body class="nodl">
+<header>
+  <div class="logo" id="hLogo"></div>
+  <div class="ttl"><h1>Calculadora de Tarimas</h1><div id="hCompany">Paletizado · Control de cajas</div></div>
+  <div class="sp"></div>
+  <button class="btn sm" id="installBtn" hidden>⬇ Instalar app</button>
+  <button class="btn ghost sm" id="openSettings"></button>
+</header>
+
+<main>
+  <!-- CALCULADORA -->
+  <section class="card">
+    <h2 data-ic="calc">Calculadora</h2>
+    <div class="screen"><div class="expr" id="expr"></div><div class="val" id="val">0</div></div>
+    <div class="keys" id="keys">
+      <button class="fn" data-k="C">C</button>
+      <button class="fn" data-k="back">⌫</button>
+      <button class="fn" data-k="%">%</button>
+      <button class="op" data-k="/">÷</button>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <button class="op" data-k="*">×</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button class="op" data-k="-">−</button>
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button class="op" data-k="+">+</button>
+      <button class="wide" data-k="0">0</button><button data-k=".">.</button>
+      <button class="eq" data-k="=">=</button>
+    </div>
+    <button class="btn send" id="useCalc" style="justify-content:center">↓ Usar resultado como cantidad de cajas</button>
+    <div class="hist" id="hist"></div>
+  </section>
+
+  <!-- TARIMA -->
+  <section>
+    <div class="card">
+      <div class="pallet-head">
+        <div>
+          <label>Tarima actual</label>
+          <div class="pid"><span data-ic="pallet"></span><span id="pid">—</span></div>
+        </div>
+        <div class="btns">
+          <button class="btn ghost sm" id="editPallet" data-ic="edit">Editar</button>
+          <button class="btn ghost sm" id="copyPallet" data-ic="copy">Copiar</button>
+          <button class="btn pdf sm pdfbtn" id="pdfPallet" data-ic="pdf">PDF</button>
+          <button class="btn sm" id="closePallet" data-ic="check">Cerrar tarima</button>
+        </div>
+      </div>
+
+      <div class="row r3">
+        <div><label data-ic="pin">Destino <small>(opcional)</small></label><input id="iDest" autocomplete="off" placeholder="—"></div>
+        <div><label data-ic="truck">Delivery <small>(opcional)</small></label><input id="iDel" autocomplete="off" placeholder="—"></div>
+        <div><label data-ic="barcode">HU <small>(opcional)</small></label><div class="inbtn"><input id="iHu" autocomplete="off" placeholder="—"><button type="button" class="scanb" data-scan="iHu" title="Escanear código"></button></div></div>
+      </div>
+      <div class="row r2">
+        <div><label data-ic="user">Paletizó</label><input id="iPal" list="names" autocomplete="off" placeholder="Nombre"></div>
+        <div><label data-ic="cart">Surtió</label><input id="iPick" list="names" autocomplete="off" placeholder="Nombre"></div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><span data-ic="box"></span><b id="sBoxes">0</b><span>Cajas</span></div>
+        <div class="stat"><span data-ic="tag"></span><b id="sParts">0</b><span>No. de parte</span></div>
+        <div class="stat"><span data-ic="barcode"></span><b id="sBatches">0</b><span>Batches</span></div>
+        <div class="stat"><span data-ic="layers"></span><b id="sPcs">0</b><span>Piezas</span></div>
+      </div>
+      <div class="bar" id="bar"><i id="barFill" style="width:0"></i></div>
+      <div class="barlbl"><span id="barTxt">0 / 0 cajas</span><span id="barRest"></span></div>
+
+      <div style="margin-top:12px">
+        <label data-ic="camera">Fotos de referencia <small>(opcional, hasta 4)</small></label>
+        <div class="photos" id="curPhotos"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <h2 data-ic="box" style="margin:0">Agregar cajas a la tarima</h2>
+        <button class="btn ghost sm" id="openCatalog" type="button" data-ic="tag">Catálogo de partes</button>
+      </div>
+      <div class="chips" id="chips"></div>
+      <form id="addForm">
+        <div class="row r4">
+          <div><label data-ic="tag">No. de parte</label><div class="inbtn"><input id="fPart" required autocomplete="off" list="partsList" placeholder="Ej. 900HC123"><button type="button" class="scanb" data-scan="fPart" title="Escanear código"></button></div></div>
+          <div><label data-ic="barcode">Batch</label><div class="inbtn"><input id="fBatch" required autocomplete="off" placeholder="Ej. 4471"><button type="button" class="scanb" data-scan="fBatch" title="Escanear código"></button></div></div>
+          <div><label data-ic="box">Cajas</label><input id="fQty" required type="number" min="1" step="1" placeholder="0"></div>
+          <div><label>Pzas / caja</label><input id="fPpb" type="number" min="0" step="1" placeholder="opcional"></div>
+        </div>
+        <div class="row r3">
+          <div><label data-ic="layers">Camas</label><input id="fLayers" type="number" min="0" placeholder="opcional"></div>
+          <div><label>Cajas por cama</label><input id="fPerLayer" type="number" min="0" placeholder="opcional"></div>
+          <div style="display:flex;align-items:flex-end"><button type="button" class="btn ghost" id="layersBtn" style="width:100%;justify-content:center">= Camas × cajas</button></div>
+        </div>
+        <div class="btns"><button class="btn" type="submit" data-ic="plus">Agregar a la tarima</button></div>
+        <div class="hint">Si el mismo número de parte y batch ya existe en la tarima, se suman las cajas. Con lector de código: escanea la parte, luego el batch y escribe las cajas; Enter agrega.</div>
+      </form>
+
+      <table>
+        <thead><tr><th>#</th><th>No. de parte</th><th>Batch</th><th class="n">Cajas</th><th class="n">Pzas</th><th></th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <div class="card closed">
+      <h2 data-ic="truck">Tarimas cerradas · por destino y delivery</h2>
+      <div class="hint" style="margin:-4px 0 10px">Cuando un delivery o un destino quede completo, ciérralo para pasarlo a "Embarcados".</div>
+      <div id="closedList"><div class="empty">Aún no hay tarimas cerradas.</div></div>
+      <div class="btns" style="margin-top:8px"><button class="btn ghost sm" id="copyAll" data-ic="copy">Copiar todas</button><button class="btn danger sm" id="clearAll">Borrar historial</button></div>
+    </div>
+
+    <div class="card closed">
+      <h2 data-ic="check">Embarcados · destinos y deliveries cerrados</h2>
+      <div id="doneList"><div class="empty">Aún no hay deliveries ni destinos cerrados.</div></div>
+    </div>
+  </section>
+</main>
+
+<datalist id="names"></datalist>
+<datalist id="partsList"></datalist>
+<input type="file" id="photoInput" accept="image/*" multiple hidden>
+<input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
+<input type="file" id="logoInput" accept="image/*" hidden>
+
+<!-- Modal tarima -->
+<div class="modal" id="modal">
+  <div class="card">
+    <h2 id="mTitle">Tarima</h2>
+    <div class="row"><div><label>Nombre de la tarima</label><input id="mId" autocomplete="off"></div></div>
+    <div class="row"><div><label>Capacidad máxima (cajas)</label><input id="mCap" type="number" min="0" placeholder="Ej. 48"></div></div>
+    <div class="btns"><button class="btn" id="mOk">Guardar</button><button class="btn ghost" id="mCancel">Cancelar</button></div>
+  </div>
+</div>
+
+<!-- Modal ajustes / logo -->
+<div class="modal" id="settings">
+  <div class="card">
+    <h2 data-ic="gear">Logo y encabezado</h2>
+    <div class="setlogo"><div class="logo" id="sLogo"></div>
+      <div class="btns"><button class="btn sm" id="sUpload" data-ic="camera">Subir logo</button><button class="btn ghost sm" id="sReset">Quitar</button></div></div>
+    <div class="row"><div><label>Empresa / área <small>(sale en el PDF)</small></label><input id="sCompany" autocomplete="off" placeholder="Ej. Almacén · Materiales"></div></div>
+    <div class="row"><div><label>Tamaño de impresión</label>
+      <select id="sFmt"><option value="cartaTk">Carta: resumen gráfico + tickets por tarima (recomendado)</option><option value="t80">Rollo térmico 80 mm</option><option value="t58">Rollo térmico 58 mm</option><option value="carta">Carta: una hoja completa por tarima</option></select></div></div>
+    <div class="btns"><button class="btn" id="sOk">Guardar</button><button class="btn ghost" id="sCancel">Cancelar</button></div>
+  </div>
+</div>
+
+<!-- Modal confirmar -->
+<div class="modal" id="confirm" style="z-index:30">
+  <div class="card">
+    <h2>Confirmar</h2>
+    <p id="cMsg" style="margin:0 0 14px"></p>
+    <div class="btns"><button class="btn" id="cOk">Sí</button><button class="btn ghost" id="cNo">No</button></div>
+  </div>
+</div>
+
+<!-- Modal editar tarima cerrada -->
+<div class="modal" id="editModal">
+  <div class="card">
+    <h2 data-ic="edit">Editar tarima cerrada</h2>
+    <div class="row r3">
+      <div><label>Nombre</label><input id="eId" autocomplete="off"></div>
+      <div><label>Capacidad (cajas)</label><input id="eCap" type="number" min="0"></div>
+      <div><label data-ic="pin">Destino</label><input id="eDest" autocomplete="off"></div>
+    </div>
+    <div class="row r3">
+      <div><label data-ic="truck">Delivery</label><input id="eDel" autocomplete="off"></div>
+      <div><label data-ic="barcode">HU</label><input id="eHu" autocomplete="off"></div>
+      <div></div>
+    </div>
+    <div class="row r2">
+      <div><label data-ic="user">Paletizó</label><input id="ePal" list="names" autocomplete="off"></div>
+      <div><label data-ic="cart">Surtió</label><input id="ePick" list="names" autocomplete="off"></div>
+    </div>
+    <table class="eitems"><thead><tr><th>No. de parte</th><th>Batch</th><th class="n">Cajas</th><th class="n">Pzas/caja</th><th></th></tr></thead><tbody id="eBody"></tbody></table>
+    <div class="btns" style="margin:8px 0 12px"><button class="btn ghost sm" id="eAdd" data-ic="plus">Agregar renglón</button></div>
+    <label data-ic="camera">Fotos de referencia</label>
+    <div class="photos" id="ePhotos" style="margin-bottom:14px"></div>
+    <div class="btns" style="justify-content:space-between">
+      <div class="btns"><button class="btn" id="eSave">Guardar cambios</button><button class="btn ghost" id="eCancel">Cancelar</button></div>
+      <button class="btn danger" id="eDelete">Eliminar tarima</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal catálogo -->
+<div class="modal" id="catalog">
+  <div class="card" style="max-width:620px;max-height:92vh;overflow:auto">
+    <h2 data-ic="tag">Catálogo de números de parte</h2>
+    <div class="hint" style="margin:-4px 0 10px">Cada parte que agregas a una tarima se guarda aquí sola. Puedes ponerle descripción y piezas por caja para que se llenen solas.</div>
+    <div class="row r3" style="grid-template-columns:1.3fr 1.6fr .8fr auto">
+      <input id="cPart" placeholder="No. de parte" autocomplete="off"><input id="cDesc" placeholder="Descripción (opcional)" autocomplete="off">
+      <input id="cPpb" type="number" min="0" placeholder="Pzas/caja"><button class="btn sm" id="cAdd" data-ic="plus"></button>
+    </div>
+    <input id="cSearch" placeholder="Buscar…" autocomplete="off" style="margin-bottom:6px">
+    <table class="eitems"><thead><tr><th>No. de parte</th><th>Descripción</th><th class="n">Pzas/caja</th><th class="n">Usos</th><th></th></tr></thead><tbody id="cBody"></tbody></table>
+    <div class="btns" style="margin-top:12px"><button class="btn" id="cClose">Listo</button></div>
+  </div>
+</div>
+
+<!-- Modal escaneo en vivo -->
+<div class="modal" id="scanModal">
+  <div class="card" style="max-width:440px">
+    <h2 data-ic="barcode">Escanear código</h2>
+    <video id="scanVideo" playsinline muted style="width:100%;border-radius:10px;background:#000;aspect-ratio:4/3;object-fit:cover"></video>
+    <div class="hint" id="scanMsg">Apunta la cámara al código de barras o QR…</div>
+    <div class="btns" style="margin-top:10px"><button class="btn ghost" id="scanPhoto" data-ic="camera">Mejor tomar foto</button><button class="btn ghost" id="scanCancel">Cancelar</button></div>
+  </div>
+</div>
+
+<div class="modal" id="iosHint">
+  <div class="card">
+    <h2>Instalar en iPhone / iPad</h2>
+    <p style="margin:0 0 12px;line-height:1.5">En Safari toca <b>Compartir</b> (el cuadro con flecha hacia arriba) y luego <b>Agregar a pantalla de inicio</b>.</p>
+    <div class="btns"><button class="btn" onclick="this.closest('.modal').classList.remove('on')">Entendido</button></div>
+  </div>
+</div>
+
+<div class="modal" id="lightbox"><img id="lbImg" alt="Foto de referencia"></div>
+<div class="toast" id="toast"></div>
+<footer>Calculadora de Tarimas · <b>@cybercadtm</b></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+/* ---------- ICONOS ---------- */
+const P = d => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICON = {
+  pallet: P('<path d="M3 17h18M3 21h18M5 17v4M12 17v4M19 17v4"/><rect x="5" y="9" width="6" height="8" rx="1"/><rect x="13" y="9" width="6" height="8" rx="1"/><rect x="9" y="3" width="6" height="6" rx="1"/>'),
+  box: P('<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>'),
+  truck: P('<rect x="1" y="6" width="14" height="10" rx="1"/><path d="M15 9h4l3 3v4h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>'),
+  pin: P('<path d="M12 22s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>'),
+  barcode: P('<path d="M4 5v14M7 5v14M11 5v14M14 5v14M18 5v14M20 5v14"/>'),
+  user: P('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'),
+  cart: P('<path d="M3 4h2l2 11h11l2-8H6"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>'),
+  tag: P('<path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.5"/>'),
+  layers: P('<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity=".5"/>'),
+  camera: P('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+  pdf: P('<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h4"/>'),
+  copy: P('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>'),
+  edit: P('<path d="M4 20h4L19 9l-4-4L4 16z"/>'),
+  check: P('<path d="M5 12l5 5 9-10"/>'),
+  plus: P('<path d="M12 5v14M5 12h14"/>'),
+  calc: P('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>'),
+  gear: P('<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'),
+};
+document.querySelectorAll('[data-ic]').forEach(el=> el.insertAdjacentHTML('afterbegin', ICON[el.dataset.ic]));
+$('openSettings').innerHTML = ICON.gear + 'Logo';
+const ICON_SCAN = P('<path d="M3 7V4h3M21 7V4h-3M3 17v3h3M21 17v3h-3"/><path d="M7 8v8M10 8v8M13 8v8M16 8v8"/>');
+document.querySelectorAll('[data-scan]').forEach(b=>b.innerHTML = ICON_SCAN);
+
+/* ---------- ESTADO ---------- */
+const KEY = 'calcTarimas_v2';
+let state = { cur: null, closed: [], seq: 1, settings: { logo: null, company: '' } };
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.cur) state = Object.assign(state, s); } catch(e){}
+state.settings = state.settings || { logo:null, company:'' };
+if (!state.settings.fmtV2){ state.settings.fmt = 'cartaTk'; state.settings.fmtV2 = true; }
+state.parts = state.parts || {};
+let warnedQuota = false;
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch(e){ if(!warnedQuota){ warnedQuota=true; toast('Memoria del navegador llena: borra fotos o tarimas viejas'); } }
+}
+function norm(p){ ['dest','delivery','hu','palletizer','picker'].forEach(f=>p[f]=p[f]||''); p.photos=p.photos||[]; return p; }
+function newPallet(){
+  const id = 'TARIMA_' + state.seq; state.seq++;
+  return norm({ id, cap: state.cur ? state.cur.cap : 0, palletizer: state.cur ? state.cur.palletizer : '', picker: state.cur ? state.cur.picker : '', items: [], opened: new Date().toISOString() });
+}
+if (!state.cur) state.cur = newPallet();
+norm(state.cur); state.closed.forEach(norm);
+
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('on'),2200); }
+function ask(msg){ return new Promise(res=>{ $('cMsg').textContent=msg; $('confirm').classList.add('on');
+  $('cOk').onclick=()=>{ $('confirm').classList.remove('on'); res(true); };
+  $('cNo').onclick=()=>{ $('confirm').classList.remove('on'); res(false); }; }); }
+const fmt = n => Number(n).toLocaleString('es-MX');
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ---------- CALCULADORA ---------- */
+let expr = '', last = '0', justEval = false, hist = [];
+function show(){ $('expr').textContent = expr; $('val').textContent = expr ? (preview() ?? last) : last; }
+function preview(){ try{ const r = calc(expr); return isFinite(r) ? round(r) : null; }catch(e){ return null; } }
+function round(n){ return Math.round(n*1e10)/1e10; }
+function calc(e){ if(!/^[0-9+\-*/.%() ]+$/.test(e)) throw 0; e = e.replace(/(\d+(\.\d+)?)%/g,'($1/100)'); return Function('"use strict";return ('+e+')')(); }
+function press(k){
+  if (k==='C'){ expr=''; last='0'; justEval=false; return show(); }
+  if (k==='back'){ expr = expr.slice(0,-1); return show(); }
+  if (k==='='){
+    if(!expr) return;
+    try{ const r = round(calc(expr)); if(!isFinite(r)) throw 0;
+      hist.unshift(expr.replace(/\*/g,'×').replace(/\//g,'÷')+' = '+r); hist=hist.slice(0,15);
+      last = String(r); expr=''; justEval=true; renderHist();
+    }catch(e){ last='Error'; expr=''; }
+    return show();
+  }
+  const isOp = '+-*/%'.includes(k);
+  if (justEval){ expr = isOp ? (last==='Error'?'0':last) : ''; justEval=false; }
+  if (isOp && k!=='%' && /[+\-*/]$/.test(expr)) expr = expr.slice(0,-1);
+  if (isOp && !expr && k!=='-') expr = last==='Error'?'0':last;
+  expr += k; show();
+}
+function renderHist(){ $('hist').innerHTML = hist.map(h=>`<div>${h}</div>`).join(''); }
+$('hist').onclick = e => { if(e.target.tagName==='DIV' && e.target.parentNode.id==='hist'){ last = e.target.textContent.split('= ').pop(); expr=''; justEval=true; show(); } };
+$('keys').onclick = e => { const k = e.target.dataset.k; if(k) press(k); };
+document.addEventListener('keydown', e=>{
+  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if (document.querySelector('.modal.on')) { if(e.key==='Escape') document.querySelectorAll('.modal.on').forEach(m=>m.classList.remove('on')); return; }
+  const m = {Enter:'=','=':'=',Backspace:'back',Escape:'C',Delete:'C'};
+  const k = m[e.key] || ('0123456789+-*/.%'.includes(e.key) ? e.key : null);
+  if (k){ e.preventDefault(); press(k); }
+});
+$('useCalc').onclick = ()=>{
+  const v = expr ? preview() : Number(last);
+  if (v==null || isNaN(v) || v<=0){ return toast('No hay un resultado válido'); }
+  $('fQty').value = Math.round(v); $('fQty').focus(); toast('Cantidad: '+Math.round(v)+' cajas');
+};
+
+/* ---------- LOGO ---------- */
+function logoHtml(){ return state.settings.logo ? `<img src="${state.settings.logo}" alt="Logo">` : ICON.pallet; }
+function renderHeader(){
+  $('hLogo').innerHTML = logoHtml();
+  $('hCompany').textContent = state.settings.company || 'Paletizado · Control de cajas';
+}
+let tmpLogo = null;
+$('openSettings').onclick = ()=>{ tmpLogo = state.settings.logo; $('sLogo').innerHTML = logoHtml(); $('sCompany').value = state.settings.company||''; $('sFmt').value = state.settings.fmt; $('settings').classList.add('on'); };
+$('sUpload').onclick = ()=> $('logoInput').click();
+$('sReset').onclick = ()=>{ tmpLogo = null; $('sLogo').innerHTML = ICON.pallet; };
+$('logoInput').onchange = async e=>{
+  const f = e.target.files[0]; e.target.value=''; if(!f) return;
+  try{ tmpLogo = await shrink(f, 300, 'image/png'); $('sLogo').innerHTML = `<img src="${tmpLogo}" alt="Logo">`; }catch(err){ toast('No se pudo leer la imagen'); }
+};
+$('sCancel').onclick = ()=> $('settings').classList.remove('on');
+$('sOk').onclick = ()=>{ state.settings.logo = tmpLogo; state.settings.company = $('sCompany').value.trim(); state.settings.fmt = $('sFmt').value; $('settings').classList.remove('on'); renderHeader(); save(); };
+
+/* ---------- FOTOS ---------- */
+function shrink(file, max, type='image/jpeg', q=.72){
+  return new Promise((res,rej)=>{
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = ()=>{
+      const s = Math.min(1, max/Math.max(img.width,img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
+      const g = c.getContext('2d'); if(type==='image/jpeg'){ g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height); }
+      g.drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url); res(c.toDataURL(type,q));
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(); };
+    img.src = url;
+  });
+}
+let photoTarget = null; // arreglo de fotos destino
+function photosHtml(arr, editable){
+  return arr.map((src,i)=>`<div class="ph" data-view="${i}"><img src="${src}" alt="Foto ${i+1}">${editable?`<button data-rmph="${i}" title="Quitar">✕</button>`:''}</div>`).join('')
+    + (editable && arr.length<4 ? `<div class="addph" data-addph>${ICON.camera}Agregar</div>` : '');
+}
+function bindPhotos(container, getArr, after){
+  container.onclick = e=>{
+    const rm = e.target.closest('[data-rmph]'); if(rm){ e.stopPropagation(); getArr().splice(+rm.dataset.rmph,1); after(); return; }
+    if (e.target.closest('[data-addph]')){ photoTarget = {getArr, after}; $('photoInput').click(); return; }
+    const v = e.target.closest('[data-view]'); if(v){ $('lbImg').src = getArr()[+v.dataset.view]; $('lightbox').classList.add('on'); }
+  };
+}
+$('photoInput').onchange = async e=>{
+  const files = [...e.target.files]; e.target.value=''; if(!photoTarget) return;
+  const arr = photoTarget.getArr();
+  for (const f of files){ if(arr.length>=4){ toast('Máximo 4 fotos por tarima'); break; } try{ arr.push(await shrink(f, 1000)); }catch(err){ toast('No se pudo leer una imagen'); } }
+  photoTarget.after();
+};
+$('lightbox').onclick = ()=> $('lightbox').classList.remove('on');
+bindPhotos($('curPhotos'), ()=>state.cur.photos, render);
+
+/* ---------- ESCANEO (batch, parte, HU) ---------- */
+const inClaudeView = !!(window.claude && typeof window.claude.use === 'function');
+let scanTarget = null, zxReader = null, zxLoading = null;
+function loadZXing(){
+  if (window.ZXing) return Promise.resolve();
+  if (!zxLoading) zxLoading = new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.23.0/umd/index.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
+  return zxLoading;
+}
+function zxHints(){ const h = new Map(); h.set(ZXing.DecodeHintType.TRY_HARDER, true); return h; }
+function cleanCode(txt, id){
+  let t = String(txt||'').replace(/[\x00-\x1f]/g, m=> m==='\x1d' ? '|' : '').trim();
+  if (id==='fBatch'){
+    const m = t.match(/\(10\)([^(|]+)/) || t.match(/(?:^|\|)10([^|]+)/); // GS1: lote (10)
+    if (m && (t.includes('(10)') || t.includes('|'))) t = m[1];
+  }
+  return t.toUpperCase();
+}
+function putScan(id, txt){
+  const v = cleanCode(txt, id); if (!v){ toast('Código vacío'); return; }
+  const el = $(id); el.value = v; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true}));
+  try{ navigator.vibrate && navigator.vibrate(60); }catch(e){}
+  toast('Escaneado: '+v);
+  const next = {fPart:'fBatch', fBatch:'fQty'}[id]; if (next) $(next).focus(); else el.blur();
+}
+async function decodeImageFile(file){
+  const url = await shrink(file, 1600, 'image/jpeg', .9);
+  if ('BarcodeDetector' in window){
+    try{ const img = new Image(); img.src = url; await img.decode(); const r = await new BarcodeDetector().detect(img); if (r && r[0]) return r[0].rawValue; }catch(e){}
+  }
+  await loadZXing();
+  const rd = new ZXing.BrowserMultiFormatReader(zxHints());
+  const res = await rd.decodeFromImageUrl(url); return res.getText();
+}
+async function startScan(id){
+  scanTarget = id;
+  if (!inClaudeView && navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    try{
+      await loadZXing();
+      $('scanMsg').textContent = 'Apunta la cámara al código de barras o QR…'; $('scanModal').classList.add('on');
+      zxReader = new ZXing.BrowserMultiFormatReader(zxHints());
+      await zxReader.decodeFromConstraints({video:{facingMode:'environment'}}, $('scanVideo'), (res)=>{
+        if (res){ const t = res.getText(); stopScan(); putScan(id, t); }
+      });
+      return;
+    }catch(e){ stopScan(); }
+  }
+  $('scanFile').click(); // dentro de Claude: tomar foto del código
+}
+function stopScan(){ try{ zxReader && zxReader.reset(); }catch(e){} zxReader = null; $('scanModal').classList.remove('on'); }
+$('scanCancel').onclick = stopScan;
+$('scanPhoto').onclick = ()=>{ stopScan(); $('scanFile').click(); };
+$('scanFile').onchange = async e=>{
+  const f = e.target.files[0]; e.target.value=''; if(!f || !scanTarget) return;
+  const btn = document.querySelector(`[data-scan="${scanTarget}"]`); btn && btn.classList.add('busy'); toast('Leyendo código…');
+  try{ putScan(scanTarget, await decodeImageFile(f)); }
+  catch(err){ toast('No se encontró código en la foto. Acércate, enfoca bien o escríbelo.'); }
+  finally{ btn && btn.classList.remove('busy'); }
+};
+document.querySelectorAll('[data-scan]').forEach(b=> b.onclick = ()=> startScan(b.dataset.scan));
+// Lector de código USB/Bluetooth (teclado): Enter avanza al siguiente campo
+$('fPart').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); applyPart && applyPart(); $('fBatch').focus(); } });
+$('fBatch').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('fBatch').value = cleanCode($('fBatch').value,'fBatch'); if(!$('fQty').value) $('fQty').focus(); else $('addForm').requestSubmit(); } });
+
+/* ---------- CATÁLOGO DE PARTES ---------- */
+function learnPart(part, ppb, batch){
+  const c = state.parts[part] || (state.parts[part] = {desc:'', ppb:0, uses:0, last:0, lastBatch:''});
+  c.uses++; c.last = Date.now(); if (ppb) c.ppb = ppb; if (batch) c.lastBatch = batch;
+}
+// primera vez: aprender de lo ya registrado
+if (!Object.keys(state.parts).length){ [...state.closed, state.cur].forEach(p=>p.items.forEach(i=>learnPart(i.part, i.ppb, i.batch))); }
+function renderParts(){
+  const list = Object.entries(state.parts);
+  $('partsList').innerHTML = list.map(([k,c])=>`<option value="${esc(k)}">${esc(c.desc||'')}${c.ppb?' · '+c.ppb+' pzas/caja':''}</option>`).join('');
+  $('chips').innerHTML = list.sort((a,b)=>b[1].last-a[1].last).slice(0,8)
+    .map(([k,c])=>`<button type="button" class="chip" data-part="${esc(k)}">${esc(k)}${c.desc?` <small>${esc(c.desc.slice(0,18))}</small>`:''}</button>`).join('');
+}
+function applyPart(){
+  const c = state.parts[$('fPart').value.trim().toUpperCase()];
+  $('fBatch').placeholder = c && c.lastBatch ? 'Último: '+c.lastBatch : 'Ej. 4471';
+  if (c && c.ppb && !$('fPpb').value) $('fPpb').value = c.ppb;
+}
+$('fPart').addEventListener('input', applyPart);
+$('fPart').addEventListener('change', applyPart);
+$('chips').onclick = e=>{ const b = e.target.closest('[data-part]'); if(!b) return; $('fPart').value = b.dataset.part; $('fPpb').value=''; applyPart(); $('fBatch').focus(); };
+function renderCatalog(){
+  const q = $('cSearch').value.trim().toUpperCase();
+  const list = Object.entries(state.parts).filter(([k,c])=>!q || k.includes(q) || (c.desc||'').toUpperCase().includes(q)).sort((a,b)=>a[0].localeCompare(b[0],'es',{numeric:true}));
+  $('cBody').innerHTML = list.length ? list.map(([k,c])=>`<tr><td>${esc(k)}</td><td><input data-cd="${esc(k)}" value="${esc(c.desc||'')}" placeholder="—"></td>
+    <td><input data-cp="${esc(k)}" type="number" min="0" value="${c.ppb||''}" placeholder="—" style="text-align:right"></td><td class="n">${c.uses||0}</td>
+    <td><button class="x" data-cdel="${esc(k)}" title="Borrar">✕</button></td></tr>`).join('') : `<tr><td colspan="5" class="empty">Sin partes guardadas.</td></tr>`;
+}
+$('openCatalog').onclick = ()=>{ $('cSearch').value=''; renderCatalog(); $('catalog').classList.add('on'); };
+$('cSearch').oninput = renderCatalog;
+$('cBody').addEventListener('input', e=>{
+  const t = e.target;
+  if (t.dataset.cd!==undefined) state.parts[t.dataset.cd].desc = t.value.trim();
+  if (t.dataset.cp!==undefined) state.parts[t.dataset.cp].ppb = parseInt(t.value,10)||0;
+  save();
+});
+$('cBody').addEventListener('click', async e=>{
+  const k = e.target.dataset.cdel; if(k===undefined) return;
+  $('catalog').classList.remove('on');
+  if (await ask(`¿Borrar ${k} del catálogo? (No se borra de las tarimas)`)){ delete state.parts[k]; save(); renderParts(); }
+  renderCatalog(); $('catalog').classList.add('on');
+});
+$('cAdd').onclick = ()=>{
+  const k = $('cPart').value.trim().toUpperCase(); if(!k) return toast('Escribe el número de parte');
+  const c = state.parts[k] || (state.parts[k] = {desc:'', ppb:0, uses:0, last:Date.now(), lastBatch:''});
+  if ($('cDesc').value.trim()) c.desc = $('cDesc').value.trim(); const pp = parseInt($('cPpb').value,10); if (pp) c.ppb = pp;
+  $('cPart').value=$('cDesc').value=$('cPpb').value=''; save(); renderParts(); renderCatalog(); toast('Parte guardada');
+};
+$('cClose').onclick = ()=>{ $('catalog').classList.remove('on'); renderParts(); };
+
+/* ---------- TARIMA ---------- */
+function totals(p){
+  const boxes = p.items.reduce((a,i)=>a+i.qty,0);
+  const pcs = p.items.reduce((a,i)=>a+i.qty*(i.ppb||0),0);
+  const parts = new Set(p.items.map(i=>i.part)).size;
+  const batches = new Set(p.items.map(i=>i.part+'|'+i.batch)).size;
+  return {boxes,pcs,parts,batches};
+}
+const FIELDS = [['iDest','dest'],['iDel','delivery'],['iHu','hu'],['iPal','palletizer'],['iPick','picker']];
+function render(){
+  const p = state.cur, t = totals(p);
+  $('pid').textContent = p.id;
+  FIELDS.forEach(([el,f])=>{ if(document.activeElement.id!==el) $(el).value = p[f]||''; });
+  $('sBoxes').textContent = fmt(t.boxes); $('sParts').textContent = t.parts; $('sBatches').textContent = t.batches; $('sPcs').textContent = t.pcs ? fmt(t.pcs) : '—';
+  const bar = $('bar'); bar.className='bar';
+  if (p.cap>0){
+    const pct = Math.min(100, t.boxes/p.cap*100);
+    $('barFill').style.width = pct+'%';
+    $('barTxt').textContent = `${fmt(t.boxes)} / ${fmt(p.cap)} cajas`;
+    const rest = p.cap - t.boxes;
+    if (rest<0){ bar.classList.add('over'); $('barRest').textContent = `⚠ Excede por ${-rest}`; }
+    else if (rest===0){ bar.classList.add('full'); $('barRest').textContent = '✔ Tarima completa'; }
+    else $('barRest').textContent = `Faltan ${rest}`;
+  } else { $('barFill').style.width='0'; $('barTxt').textContent = `${fmt(t.boxes)} cajas`; $('barRest').textContent='Sin capacidad definida (Editar)'; }
+  $('tbody').innerHTML = p.items.length ? p.items.map((i,n)=>`<tr><td>${n+1}</td><td>${esc(i.part)}${state.parts[i.part]&&state.parts[i.part].desc?`<span class="pdesc">${esc(state.parts[i.part].desc)}</span>`:''}</td><td>${esc(i.batch)}</td><td class="n">${fmt(i.qty)}</td><td class="n">${i.ppb?fmt(i.qty*i.ppb):'—'}</td><td class="n"><button class="x" data-i="${n}" title="Quitar">✕</button></td></tr>`).join('')
+    : `<tr><td colspan="6" class="empty">Sin cajas registradas en esta tarima.</td></tr>`;
+  $('curPhotos').innerHTML = photosHtml(p.photos, true);
+  const names = new Set(); [state.cur, ...state.closed].forEach(x=>{ if(x.palletizer) names.add(x.palletizer); if(x.picker) names.add(x.picker); });
+  $('names').innerHTML = [...names].map(n=>`<option value="${esc(n)}">`).join('');
+  renderClosed(); save();
+}
+$('tbody').onclick = async e=>{
+  const i = e.target.dataset.i; if(i===undefined) return;
+  const it = state.cur.items[i];
+  if (await ask(`¿Quitar ${it.qty} cajas de ${it.part} / batch ${it.batch}?`)){ state.cur.items.splice(i,1); render(); }
+};
+$('layersBtn').onclick = ()=>{
+  const a = +$('fLayers').value, b = +$('fPerLayer').value;
+  if (a>0 && b>0){ $('fQty').value = a*b; toast(`${a} camas × ${b} = ${a*b} cajas`); } else toast('Llena camas y cajas por cama');
+};
+$('addForm').onsubmit = e=>{
+  e.preventDefault();
+  const part = $('fPart').value.trim().toUpperCase(), batch = $('fBatch').value.trim().toUpperCase();
+  const qty = parseInt($('fQty').value,10), ppb = parseInt($('fPpb').value,10)||0;
+  if (!part || !batch || !(qty>0)) return toast('Completa parte, batch y cajas');
+  const ex = state.cur.items.find(i=>i.part===part && i.batch===batch);
+  learnPart(part, ppb, batch); renderParts();
+  if (ex){ ex.qty += qty; if(ppb) ex.ppb = ppb; toast(`Sumado: ${part} / ${batch} → ${ex.qty} cajas`); }
+  else { state.cur.items.push({part,batch,qty,ppb}); toast(`Agregado: ${qty} cajas`); }
+  $('fQty').value=''; $('fBatch').value=''; $('fBatch').placeholder='Último: '+batch; $('fBatch').focus();
+  render();
+};
+FIELDS.forEach(([el,f])=>{
+  const up = f!=='palletizer' && f!=='picker';
+  $(el).addEventListener('input', ()=>{ state.cur[f] = up ? $(el).value.trim().toUpperCase() : $(el).value.trim(); save(); });
+  $(el).addEventListener('blur', render);
+});
+function meta(p){ return [p.dest&&('Destino: '+p.dest), p.delivery&&('Delivery: '+p.delivery), p.hu&&('HU: '+p.hu), p.palletizer&&('Paletizó: '+p.palletizer), p.picker&&('Surtió: '+p.picker)].filter(Boolean); }
+
+/* modal tarima */
+function openModal(mode){
+  $('mTitle').textContent = mode==='new' ? 'Nueva tarima' : 'Editar tarima';
+  $('mId').value = state.cur.id; $('mCap').value = state.cur.cap || '';
+  $('modal').classList.add('on'); $('mId').focus();
+}
+$('editPallet').onclick = ()=>openModal('edit');
+$('mCancel').onclick = ()=>$('modal').classList.remove('on');
+$('mOk').onclick = ()=>{
+  const id = $('mId').value.trim(); if(id) state.cur.id = id.toUpperCase();
+  state.cur.cap = Math.max(0, parseInt($('mCap').value,10)||0);
+  $('modal').classList.remove('on'); render();
+};
+$('closePallet').onclick = async ()=>{
+  if (!state.cur.items.length) return toast('La tarima está vacía');
+  const t = totals(state.cur);
+  const dl = state.cur.delivery && state.closed.some(p=>p.delivery===state.cur.delivery && isDone(p));
+  if (!(await ask(`¿Cerrar ${state.cur.id} con ${t.boxes} cajas?` + (dl?` Ojo: el delivery ${state.cur.delivery} ya estaba cerrado; esta tarima quedará pendiente hasta que lo vuelvas a cerrar.`:'')))) return;
+  state.cur.closedAt = new Date().toISOString();
+  state.closed.unshift(state.cur);
+  state.cur = newPallet(); render(); openModal('new'); toast('Tarima cerrada');
+};
+
+function summary(p){
+  const t = totals(p);
+  let s = `${p.id}\n`;
+  const m = meta(p); if (m.length) s += m.join(' · ') + '\n';
+  p.items.forEach(i=> s += `${i.part}\tBatch ${i.batch}\t${i.qty} cajas${i.ppb?`\t${i.qty*i.ppb} pzas`:''}\n`);
+  s += `TOTAL: ${t.boxes} cajas · ${t.parts} parte(s) · ${t.batches} batch(es)` + (t.pcs?` · ${t.pcs} pzas`:'') + (p.cap?` (cap. ${p.cap})`:'');
+  return s;
+}
+async function copy(txt){ try{ await navigator.clipboard.writeText(txt); toast('Copiado al portapapeles'); }catch(e){ toast('No se pudo copiar'); } }
+$('copyPallet').onclick = ()=>copy(summary(state.cur));
+const isDone = p => !!(p.delClosedAt || p.destClosedAt);
+function tree(done){
+  const dmap = new Map();
+  state.closed.forEach((p,k)=>{
+    if (isDone(p)!==done) return;
+    const d = p.dest||'', v = p.delivery||'';
+    if(!dmap.has(d)) dmap.set(d,new Map());
+    const vm = dmap.get(d); if(!vm.has(v)) vm.set(v,[]); vm.get(v).push(k);
+  });
+  const srt = (a,b)=> (a==='') - (b==='') || a.localeCompare(b,'es',{numeric:true});
+  return [...dmap.keys()].sort(srt).map(d=>({dest:d, dels:[...dmap.get(d).keys()].sort(srt).map(v=>({del:v, idx:dmap.get(d).get(v)}))}));
+}
+const sumOf = idx => { const a = idx.reduce((a,k)=>{ const p=state.closed[k], t=totals(p); a.boxes+=t.boxes; a.pcs+=t.pcs; p.items.forEach(i=>{ a.P.add(i.part); a.B.add(i.part+'|'+i.batch); }); return a; },{boxes:0,pcs:0,P:new Set(),B:new Set()}); a.parts=a.P.size; a.batches=a.B.size; return a; };
+const allIdx = node => node.dels ? node.dels.flatMap(v=>v.idx) : node.idx;
+function delSummary(dest, v){
+  const ps = v.idx.map(k=>state.closed[k]), s = sumOf(v.idx);
+  return `${v.del?'DELIVERY '+v.del:'SIN DELIVERY'}${dest?' → '+dest:''} — ${ps.length} tarima(s), ${s.boxes} cajas\n\n` + ps.map(summary).join('\n\n');
+}
+function destSummary(node){
+  const s = sumOf(allIdx(node));
+  return `DESTINO ${node.dest||'(sin destino)'} — ${node.dels.length} delivery(s), ${allIdx(node).length} tarima(s), ${s.boxes} cajas\n\n` + node.dels.map(v=>delSummary('',v)).join('\n\n----------\n\n');
+}
+$('copyAll').onclick = ()=>{ const t = tree(false); if(!t.length) return toast('No hay tarimas pendientes'); copy(t.map(destSummary).join('\n\n==========\n\n')); };
+$('clearAll').onclick = async ()=>{ if(state.closed.length && await ask('¿Borrar TODAS las tarimas cerradas y embarcadas?')){ state.closed=[]; render(); } };
+
+let views = []; // nodos indexados para los botones
+function palletHtml(k, locked){
+  const p=state.closed[k], t=totals(p), d=new Date(p.closedAt);
+  return `<details><summary>${esc(p.id)} · ${fmt(t.boxes)} cajas · ${d.toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'})}${p.photos.length?' · 📷'+p.photos.length:''}</summary>
+  <div class="people">${p.hu?`<span>${ICON.barcode}HU ${esc(p.hu)}</span>`:''}${p.palletizer?`<span>${ICON.user}Paletizó: ${esc(p.palletizer)}</span>`:''}${p.picker?`<span>${ICON.cart}Surtió: ${esc(p.picker)}</span>`:''}</div>
+  <table><thead><tr><th>No. de parte</th><th>Batch</th><th class="n">Cajas</th><th class="n">Pzas</th></tr></thead><tbody>
+  ${p.items.map(i=>`<tr><td>${esc(i.part)}</td><td>${esc(i.batch)}</td><td class="n">${fmt(i.qty)}</td><td class="n">${i.ppb?fmt(i.qty*i.ppb):'—'}</td></tr>`).join('')}
+  </tbody></table>
+  ${p.photos.length?`<div class="photos" data-phk="${k}">${photosHtml(p.photos,false)}</div>`:''}
+  <div class="btns" style="margin-top:8px">${locked?'':`<button class="btn ghost sm" data-edit="${k}">${ICON.edit}Editar</button>`}<button class="btn ghost sm" data-copy="${k}">${ICON.copy}Copiar</button><button class="btn pdf sm pdfbtn" data-pdf="${k}">${ICON.pdf}PDF</button></div></details>`;
+}
+function treeHtml(done){
+  const t = tree(done);
+  if (!t.length) return `<div class="empty">${done?'Aún no hay deliveries ni destinos cerrados.':'No hay tarimas pendientes de embarcar.'}</div>`;
+  return t.map(node=>{
+    const ni = views.push({type:'dest', node}) - 1, all = allIdx(node), s = sumOf(all);
+    const dClosed = done && all.every(k=>state.closed[k].destClosedAt);
+    const dDate = dClosed ? new Date(state.closed[all[0]].destClosedAt).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}) : '';
+    return `<div class="dest">
+      <div class="dest-h"><div><b>${ICON.pin}${node.dest?'Destino '+esc(node.dest):'Sin destino'} ${dClosed?`<span class="badge">Destino cerrado ${dDate}</span>`:''}</b>
+        <span>${node.dels.length} delivery(s) · ${all.length} tarima(s) · ${fmt(s.boxes)} cajas · ${s.parts} parte(s) · ${s.batches} batch(es)${s.pcs?' · '+fmt(s.pcs)+' pzas':''}</span></div>
+        <div class="btns"><button class="btn ghost sm" data-act="copy" data-n="${ni}">${ICON.copy}Copiar</button><button class="btn pdf sm pdfbtn" data-act="pdf" data-n="${ni}">${ICON.pdf}PDF destino</button>
+        ${done ? (dClosed?`<button class="btn ghost sm" data-act="reopen" data-n="${ni}">Reabrir destino</button>`:'') : (node.dest?`<button class="btn okb sm" data-act="close" data-n="${ni}">${ICON.check}Cerrar destino</button>`:'')}</div></div>
+      ${node.dels.map(v=>{
+        const vi = views.push({type:'del', node:v, dest:node.dest}) - 1, vs = sumOf(v.idx);
+        const vp = state.closed[v.idx[0]], vDate = vp.delClosedAt ? new Date(vp.delClosedAt).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}) : '';
+        return `<div class="group ${v.del?'':'nodel'}">
+        <div class="group-h"><div><b>${v.del?ICON.truck+'Delivery '+esc(v.del):'Sin delivery'} ${done&&vDate?`<span class="badge">Cerrado ${vDate}</span>`:''}</b><span>${v.idx.length} tarima(s) · ${fmt(vs.boxes)} cajas · ${vs.parts} parte(s) · ${vs.batches} batch(es)${vs.pcs?' · '+fmt(vs.pcs)+' pzas':''}</span></div>
+        <div class="btns"><button class="btn ghost sm" data-act="copy" data-n="${vi}">${ICON.copy}Copiar</button><button class="btn pdf sm pdfbtn" data-act="pdf" data-n="${vi}">${ICON.pdf}PDF</button>
+        ${done ? (!dClosed?`<button class="btn ghost sm" data-act="reopen" data-n="${vi}">Reabrir</button>`:'') : (v.del?`<button class="btn okb sm" data-act="close" data-n="${vi}">${ICON.check}Cerrar delivery</button>`:'')}</div></div>
+        ${v.idx.map(k=>palletHtml(k, done)).join('')}</div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+function renderClosed(){
+  views = [];
+  $('closedList').innerHTML = treeHtml(false);
+  $('doneList').innerHTML = treeHtml(true);
+  $('doneList').classList.add('done');
+}
+function resetNumbering(){
+  state.seq = 1;
+  if (!state.cur.items.length && /^TARIMA_\d+$/.test(state.cur.id)){ state.cur.id = 'TARIMA_1'; state.seq = 2; }
+}
+async function treeAction(act, v){
+  const now = new Date().toISOString();
+  if (v.type==='del'){
+    const name = v.node.del ? 'delivery '+v.node.del : 'grupo sin delivery';
+    if (act==='copy') return copy(delSummary(v.dest, v.node));
+    if (act==='pdf') return pdfPallets(v.node.idx.map(k=>state.closed[k]), {kind:'DELIVERY', title:v.node.del||'SIN DELIVERY', dest:v.dest});
+    if (act==='close'){ if(!(await ask(`¿Cerrar ${name} (${v.node.idx.length} tarimas)? Ya no se podrán editar hasta reabrirlo. La numeración de tarimas vuelve a TARIMA_1.`))) return;
+      v.node.idx.forEach(k=>state.closed[k].delClosedAt=now); resetNumbering(); toast('Delivery cerrado · la numeración vuelve a TARIMA_1'); }
+    if (act==='reopen'){ if(!(await ask(`¿Reabrir ${name}?`))) return; v.node.idx.forEach(k=>{ state.closed[k].delClosedAt=null; state.closed[k].destClosedAt=null; }); toast('Delivery reabierto'); }
+  } else {
+    const all = allIdx(v.node), name = v.node.dest ? 'destino '+v.node.dest : 'sin destino';
+    if (act==='copy') return copy(destSummary(v.node));
+    if (act==='pdf') return pdfPallets(all.map(k=>state.closed[k]), {kind:'DESTINO', title:v.node.dest||'SIN DESTINO'});
+    if (act==='close'){ if(!(await ask(`¿Cerrar ${name} con ${v.node.dels.length} delivery(s) y ${all.length} tarimas? La numeración de tarimas vuelve a TARIMA_1.`))) return;
+      all.forEach(k=>{ const p=state.closed[k]; p.destClosedAt=now; if(!p.delClosedAt) p.delClosedAt=now; }); resetNumbering(); toast('Destino cerrado · la numeración vuelve a TARIMA_1'); }
+    if (act==='reopen'){ if(!(await ask(`¿Reabrir ${name}? Sus deliveries vuelven a pendientes.`))) return;
+      all.forEach(k=>{ state.closed[k].destClosedAt=null; state.closed[k].delClosedAt=null; }); toast('Destino reabierto'); }
+  }
+  render();
+}
+function onTreeClick(e){
+  const v = e.target.closest('[data-view]');
+  if (v){ const k = +v.closest('[data-phk]').dataset.phk; $('lbImg').src = state.closed[k].photos[+v.dataset.view]; $('lightbox').classList.add('on'); return; }
+  const b = e.target.closest('button'); if(!b) return;
+  if (b.dataset.act) return treeAction(b.dataset.act, views[+b.dataset.n]);
+  if (b.dataset.copy!==undefined) copy(summary(state.closed[+b.dataset.copy]));
+  if (b.dataset.edit!==undefined) openEdit(+b.dataset.edit);
+  if (b.dataset.pdf!==undefined) pdfPallets([state.closed[+b.dataset.pdf]], null);
+}
+$('closedList').onclick = onTreeClick;
+$('doneList').onclick = onTreeClick;
+
+/* editar tarima cerrada */
+let editIdx = -1, editPhotos = [];
+function rowHtml(i={part:'',batch:'',qty:'',ppb:''}){
+  return `<tr><td><input class="ep" value="${esc(i.part)}"></td><td><input class="eb" value="${esc(i.batch)}"></td>
+  <td><input class="eqty" type="number" min="1" value="${i.qty}"></td><td><input class="epp" type="number" min="0" value="${i.ppb||''}"></td>
+  <td><button class="x" data-rm>✕</button></td></tr>`;
+}
+function renderEditPhotos(){ $('ePhotos').innerHTML = photosHtml(editPhotos, true); }
+bindPhotos($('ePhotos'), ()=>editPhotos, renderEditPhotos);
+function openEdit(k){
+  editIdx = k; const p = state.closed[k];
+  $('eId').value=p.id; $('eCap').value=p.cap||''; $('eDest').value=p.dest; $('eDel').value=p.delivery; $('eHu').value=p.hu;
+  $('ePal').value=p.palletizer; $('ePick').value=p.picker;
+  $('eBody').innerHTML = p.items.map(rowHtml).join('');
+  editPhotos = p.photos.slice(); renderEditPhotos();
+  $('editModal').classList.add('on');
+}
+$('eBody').onclick = e=>{ if(e.target.dataset.rm!==undefined) e.target.closest('tr').remove(); };
+$('eAdd').onclick = ()=>{ $('eBody').insertAdjacentHTML('beforeend', rowHtml()); $('eBody').lastElementChild.querySelector('input').focus(); };
+$('eCancel').onclick = ()=>$('editModal').classList.remove('on');
+$('eSave').onclick = ()=>{
+  const p = state.closed[editIdx], items = [];
+  for (const tr of $('eBody').querySelectorAll('tr')){
+    const part = tr.querySelector('.ep').value.trim().toUpperCase(), batch = tr.querySelector('.eb').value.trim().toUpperCase();
+    const qty = parseInt(tr.querySelector('.eqty').value,10), ppb = parseInt(tr.querySelector('.epp').value,10)||0;
+    if (!part && !batch && !qty) continue;
+    if (!part || !batch || !(qty>0)) return toast('Cada renglón necesita parte, batch y cajas');
+    const ex = items.find(i=>i.part===part && i.batch===batch);
+    if (ex) ex.qty += qty; else items.push({part,batch,qty,ppb});
+  }
+  if (!items.length) return toast('La tarima no puede quedar vacía');
+  p.id = $('eId').value.trim().toUpperCase() || p.id;
+  p.cap = Math.max(0, parseInt($('eCap').value,10)||0);
+  p.dest = $('eDest').value.trim().toUpperCase(); p.delivery = $('eDel').value.trim().toUpperCase(); p.hu = $('eHu').value.trim().toUpperCase();
+  p.palletizer = $('ePal').value.trim(); p.picker = $('ePick').value.trim();
+  p.items = items; p.photos = editPhotos.slice();
+  $('editModal').classList.remove('on'); render(); toast('Tarima actualizada');
+};
+$('eDelete').onclick = async ()=>{
+  const p = state.closed[editIdx];
+  $('editModal').classList.remove('on');
+  if (await ask(`¿Eliminar ${p.id} del historial?`)){ state.closed.splice(editIdx,1); render(); toast('Tarima eliminada'); }
+  else $('editModal').classList.add('on');
+};
+
+/* ---------- PDF ---------- */
+let downloads = null;
+const inClaude = !!(window.claude && typeof window.claude.use === 'function');
+if (inClaude){
+  window.claude.use('downloads').then(d=>{ downloads = d; if(d) document.body.classList.remove('nodl'); }).catch(()=>{});
+} else {
+  document.body.classList.remove('nodl'); // fuera de Claude (p. ej. GitHub Pages) se descarga directo
+}
+async function saveFile(filename, blob){
+  if (downloads){
+    try{ await downloads.save({filename, data: blob}); toast('PDF listo'); }
+    catch(e){ if(e && e.code==='declined') toast('Descarga cancelada'); else if(e && e.code==='rate_limited') toast('Espera un momento e intenta de nuevo'); else toast('No se pudo guardar el PDF'); }
+  } else if (!inClaude){
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000); toast('PDF descargado');
+  } else toast('La descarga no está disponible aquí');
+}
+function logoPng(dark){
+  return new Promise(res=>{
+    if (state.settings.logo && !dark) return res(state.settings.logo);
+    const svg = ICON.pallet.replace('class="i"','xmlns="http://www.w3.org/2000/svg" width="96" height="96"').replace('currentColor', dark ? '#000000' : '#ffffff');
+    const img = new Image();
+    img.onload = ()=>{ const c=document.createElement('canvas'); c.width=c.height=96; c.getContext('2d').drawImage(img,0,0); res(c.toDataURL('image/png')); };
+    img.onerror = ()=>res(null); setTimeout(()=>res(null), 2000);
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+const T = s => String(s||'').replace(/[\u2013\u2014]/g,'-').replace(/[^\x20-\xFF]/g,''); // texto seguro para fuentes estándar del PDF
+async function pdfLetter(pallets, cover){
+  const deliveryTitle = cover ? cover.title : null;
+  if (!window.jspdf){ return toast('No cargó el generador de PDF; revisa tu conexión'); }
+  toast('Generando PDF…');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'mm', format:'letter'});
+  const W = 215.9, M = 12, logo = await logoPng();
+  const TEAL=[0,131,140], GRAY=[110,120,125], DARK=[25,35,40];
+  const company = T(state.settings.company || 'Control de paletizado');
+
+  function header(title, sub){
+    doc.setFillColor(...TEAL); doc.rect(0,0,W,26,'F');
+    if (logo){ try{ const pr = doc.getImageProperties(logo); const h=18, w=Math.min(36, h*pr.width/pr.height);
+      doc.setFillColor(255,255,255); if(state.settings.logo) doc.roundedRect(M-1,3,w+2,h+2,2,2,'F');
+      doc.addImage(logo, state.settings.logo?'PNG':'PNG', M, 4, w, h); }catch(e){} }
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.text(T(title), 52, 12);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(company, 52, 18);
+    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.text(T(sub[0]), W-M, 12, {align:'right'});
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(T(sub[1]), W-M, 18, {align:'right'});
+    doc.setTextColor(...DARK);
+    return 34;
+  }
+  function infoGrid(y, pairs){
+    const cols = 3, cw = (W-2*M)/cols, rh = 13;
+    pairs.forEach(([l,v],i)=>{
+      const x = M + (i%cols)*cw, yy = y + Math.floor(i/cols)*rh;
+      doc.setDrawColor(215,222,225); doc.roundedRect(x, yy, cw-3, rh-2, 1.5,1.5);
+      doc.setFontSize(7); doc.setTextColor(...GRAY); doc.text(T(l).toUpperCase(), x+3, yy+4.2);
+      doc.setFontSize(11); doc.setTextColor(...DARK); doc.setFont('helvetica','bold'); doc.text(T(v||'—').slice(0,32), x+3, yy+9); doc.setFont('helvetica','normal');
+    });
+    return y + Math.ceil(pairs.length/cols)*rh + 4;
+  }
+  function table(y, cols, rows, totalRow, onNewPage){
+    const rh = 7.5;
+    const head = ()=>{ doc.setFillColor(232,243,244); doc.rect(M,y,W-2*M,rh,'F'); doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(...GRAY);
+      cols.forEach(c=>doc.text(c.t.toUpperCase(), c.r?c.x:c.x, y+5, c.r?{align:'right'}:undefined)); doc.setFont('helvetica','normal'); doc.setTextColor(...DARK); y+=rh; };
+    head();
+    rows.forEach((r,ri)=>{
+      if (y > 255){ doc.addPage(); y = onNewPage(); head(); }
+      if (ri%2){ doc.setFillColor(248,250,251); doc.rect(M,y,W-2*M,rh,'F'); }
+      doc.setFontSize(10); cols.forEach((c,ci)=>doc.text(T(r[ci]).slice(0,c.max||40), c.x, y+5.2, c.r?{align:'right'}:undefined)); y+=rh;
+    });
+    if (totalRow){ doc.setDrawColor(...TEAL); doc.setLineWidth(.5); doc.line(M,y,W-M,y); doc.setLineWidth(.2);
+      doc.setFont('helvetica','bold'); doc.setFontSize(10.5); cols.forEach((c,ci)=>{ if(totalRow[ci]!=null) doc.text(T(totalRow[ci]), c.x, y+5.6, c.r?{align:'right'}:undefined); }); doc.setFont('helvetica','normal'); y+=rh+2; }
+    return y;
+  }
+  async function photos(y, arr, cont){
+    if (!arr.length) return y;
+    if (y > 200){ doc.addPage(); y = cont(); }
+    doc.setFontSize(9); doc.setTextColor(...GRAY); doc.text('FOTOS DE REFERENCIA', M, y+4); doc.setTextColor(...DARK); y += 7;
+    const bw = (W-2*M-6)/2, bh = 68;
+    for (let i=0;i<arr.length;i++){
+      const col = i%2; if (col===0 && i>0) y += bh+4;
+      if (col===0 && y+bh > 262){ doc.addPage(); y = cont(); }
+      try{ const pr = doc.getImageProperties(arr[i]); const s = Math.min(bw/pr.width, bh/pr.height); const w=pr.width*s, h=pr.height*s;
+        const x = M + col*(bw+6) + (bw-w)/2; doc.setDrawColor(215,222,225); doc.rect(M+col*(bw+6), y, bw, bh); doc.addImage(arr[i],'JPEG',x,y+(bh-h)/2,w,h); }catch(e){}
+    }
+    return y + bh + 6;
+  }
+  function signatures(y, p){
+    if (y > 238){ doc.addPage(); y = header('HOJA DE TARIMA', [p.id, 'continuación']); }
+    y = Math.max(y+8, 240);
+    const cw = (W-2*M)/3;
+    [['Paletizó',p.palletizer],['Surtió',p.picker],['Recibió / Verificó','']].forEach(([l,n],i)=>{
+      const x = M + i*cw + 5, w = cw-10;
+      doc.setDrawColor(...GRAY); doc.line(x, y+10, x+w, y+10);
+      doc.setFontSize(9); doc.setTextColor(...DARK); doc.text(T(n||' '), x+w/2, y+8, {align:'center'});
+      doc.setFontSize(7.5); doc.setTextColor(...GRAY); doc.text(T(l).toUpperCase(), x+w/2, y+14, {align:'center'});
+    });
+    doc.setTextColor(...DARK);
+  }
+  const dt = iso => iso ? new Date(iso).toLocaleString('es-MX',{dateStyle:'medium',timeStyle:'short'}) : new Date().toLocaleString('es-MX',{dateStyle:'medium',timeStyle:'short'});
+
+  // Portada del delivery
+  if (cover){
+    const isDest = cover.kind==='DESTINO', ttl = isDest ? 'RESUMEN DE DESTINO' : 'RESUMEN DE DELIVERY';
+    const closedIso = pallets.map(p=> isDest ? p.destClosedAt : p.delClosedAt).find(Boolean);
+    let y = header(ttl, [cover.title, closedIso ? 'Cerrado: '+dt(closedIso) : 'Pendiente · '+dt()]);
+    const tb = pallets.reduce((a,p)=>a+totals(p).boxes,0), tp = pallets.reduce((a,p)=>a+totals(p).pcs,0);
+    const dests = [...new Set(pallets.map(p=>p.dest).filter(Boolean))].join(', ');
+    const dels = [...new Set(pallets.map(p=>p.delivery).filter(Boolean))];
+    y = infoGrid(y, isDest
+      ? [['Destino',cover.title],['Deliveries',String(dels.length)],['Tarimas',String(pallets.length)],['Total cajas',fmt(tb)],['Total piezas',tp?fmt(tp):'-'],['Estado',closedIso?'Cerrado':'Pendiente']]
+      : [['Delivery',cover.title],['Destino',cover.dest||dests],['Tarimas',String(pallets.length)],['Total cajas',fmt(tb)],['Total piezas',tp?fmt(tp):'-'],['Estado',closedIso?'Cerrado':'Pendiente']]);
+    const cols = [{t:'Tarima',x:M+2,max:18},{t:'Delivery',x:M+38,max:16},{t:'HU',x:M+72,max:14},{t:'Paletizó',x:M+102,max:16},{t:'Cajas',x:W-M-30,r:1},{t:'Piezas',x:W-M-2,r:1}];
+    const sorted = pallets.slice().sort((a,b)=>(a.delivery||'').localeCompare(b.delivery||'','es',{numeric:true}) || a.id.localeCompare(b.id,'es',{numeric:true}));
+    pallets = sorted;
+    y = table(y, cols, sorted.map(p=>{ const t=totals(p); return [p.id,p.delivery||'-',p.hu||'-',p.palletizer||'-',fmt(t.boxes),t.pcs?fmt(t.pcs):'-']; }),
+      ['TOTAL',null,null,null,fmt(tb),tp?fmt(tp):'-'], ()=>header(ttl,[cover.title,'continuación']));
+    doc.addPage();
+  }
+  for (let n=0;n<pallets.length;n++){
+    const p = pallets[n], t = totals(p);
+    if (n>0) doc.addPage();
+    const cont = ()=>header('HOJA DE TARIMA', [p.id, 'continuación']);
+    let y = header('HOJA DE TARIMA', [p.id, p.closedAt ? 'Cerrada: '+dt(p.closedAt) : 'En proceso · '+dt()]);
+    y = infoGrid(y, [['Destino',p.dest],['Delivery',p.delivery],['HU',p.hu],['Paletizó',p.palletizer],['Surtió',p.picker],['Cajas / capacidad', fmt(t.boxes)+(p.cap?' / '+fmt(p.cap):'')],['No. de parte',String(t.parts)],['Batches',String(t.batches)],['Piezas',t.pcs?fmt(t.pcs):'-']]);
+    const cols = [{t:'#',x:M+2},{t:'No. de parte',x:M+12,max:26},{t:'Batch',x:M+72,max:20},{t:'Cajas',x:W-M-62,r:1},{t:'Pzas/caja',x:W-M-32,r:1},{t:'Piezas',x:W-M-2,r:1}];
+    y = table(y, cols, p.items.map((i,k)=>[k+1,i.part,i.batch,fmt(i.qty),i.ppb?fmt(i.ppb):'—',i.ppb?fmt(i.qty*i.ppb):'—']),
+      ['','TOTAL', t.parts+' parte(s) · '+t.batches+' batch(es)', fmt(t.boxes), '', t.pcs?fmt(t.pcs):'—'], cont);
+    y = await photos(y, p.photos, cont);
+    signatures(y, p);
+  }
+  const pages = doc.getNumberOfPages();
+  for (let i=1;i<=pages;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    doc.text('Calculadora de Tarimas · @cybercadtm', M, 272); doc.text(`Página ${i} de ${pages}`, W-M, 272, {align:'right'}); }
+  const name = (cover ? (cover.kind==='DESTINO'?'Destino_':'Delivery_')+deliveryTitle : pallets[0].id).replace(/[^\w\-]+/g,'_') + '.pdf';
+  await saveFile(name, doc.output('blob'));
+}
+async function pdfPallets(pallets, cover){
+  const f = state.settings.fmt;
+  if (f === 'carta') return pdfLetter(pallets, cover);
+  if (f === 't80' || f === 't58') return pdfRoll(pallets, cover, f === 't58' ? 58 : 80);
+  return pdfLetterTickets(pallets, cover);
+}
+function sortForCover(pallets, cover){
+  return cover ? pallets.slice().sort((a,b)=>(a.delivery||'').localeCompare(b.delivery||'','es',{numeric:true}) || a.id.localeCompare(b.id,'es',{numeric:true})) : pallets;
+}
+const dtS = iso => new Date(iso||Date.now()).toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'});
+
+/* Ticket dibujable en cualquier posición (ox, oy) */
+function ticketKit(doc, W, logoSrc){
+  const s = W/80, M = W>=80 ? 4 : 3, CW = W-2*M;
+  const company = T(state.settings.company || '');
+  let L=0, R=W, cx=W/2;
+  const setO = ox => { L = ox+M; R = ox+W-M; cx = ox+W/2; };
+  const F = (size, bold) => { doc.setFont('helvetica', bold?'bold':'normal'); doc.setFontSize(size*s); };
+  const fit = (txt, maxW, size) => { let z=size; F(z,true); while (z>8 && doc.getTextWidth(txt)>maxW){ z-=1; F(z,true); } return z; };
+  const dash = y => { doc.setLineDashPattern([1,.8],0); doc.setDrawColor(0); doc.setLineWidth(.25); doc.line(L,y,R,y); doc.setLineDashPattern([],0); return y+3; };
+  const center = (txt, y) => doc.text(txt, cx, y, {align:'center'});
+  const wrap = (txt, w) => doc.splitTextToSize(T(txt), w);
+  function head(title, big, sub, oy){
+    let y = oy+4;
+    if (logoSrc){ try{ const pr = doc.getImageProperties(logoSrc); const lh = 9*s, lw = Math.min(CW*.6, lh*pr.width/pr.height); doc.addImage(logoSrc,'PNG',cx-lw/2,y,lw,lh); y += lh+2.5; }catch(e){} }
+    if (company){ F(8); center(company, y+2); y += 4.5*s+1; }
+    F(9,true); center(T(title), y+2); y += 5*s;
+    const z = fit(T(big), CW, 22); center(T(big), y+z*.33); y += z*.42+2;
+    F(7.5); center(T(sub), y+1.5); y += 4*s;
+    return dash(y+1);
+  }
+  function kv(y, pairs){
+    pairs.filter(([,v])=>v).forEach(([l,v])=>{
+      F(8.5,true); const lw = doc.getTextWidth(T(l)+': ');
+      doc.text(T(l)+':', L, y+3);
+      F(8.5); const ls = wrap(v, CW-lw);
+      ls.forEach((ln,i)=>doc.text(ln, L+lw, y+3+i*3.6*s)); y += Math.max(1,ls.length)*3.6*s + .6;
+    });
+    return dash(y+1);
+  }
+  function foot(y){ y+=2; F(6.5); doc.setTextColor(90); center('Calculadora de Tarimas · @cybercadtm', y+2); doc.setTextColor(0); return y+5; }
+  function bigTotal(y, label, val){ F(10,true); doc.text(label, L, y+5); F(20,true); doc.text(val, R, y+6, {align:'right'}); return y + 9*s + 1; }
+  function line2(y, l, v){ F(8.5); doc.text(T(l), L, y+3); doc.text(T(v), R, y+3, {align:'right'}); return y + 4*s; }
+  return {
+    drawPallet(p, ox, oy){
+      setO(ox); doc.setTextColor(0); const t = totals(p);
+      let y = head('HOJA DE TARIMA', p.id, p.closedAt ? 'Cerrada '+dtS(p.closedAt) : 'En proceso '+dtS(), oy);
+      y = kv(y, [['Destino',p.dest],['Delivery',p.delivery],['HU',p.hu],['Paletizó',p.palletizer],['Surtió',p.picker]]);
+      F(7,true); doc.text('NO. DE PARTE / BATCH', L, y+2); doc.text('CAJAS', R, y+2, {align:'right'}); y += 4;
+      p.items.forEach((i,n)=>{
+        F(10,true); const ql = fmt(i.qty), qw = doc.getTextWidth(ql);
+        const pl = wrap(i.part, CW-qw-3); doc.text(ql, R, y+3.5, {align:'right'});
+        pl.forEach((ln,k)=>doc.text(ln, L, y+3.5+k*4.2*s)); y += pl.length*4.2*s;
+        const desc = state.parts[i.part] && state.parts[i.part].desc;
+        if (desc){ F(7); wrap(desc, CW).forEach(ln=>{ doc.text(ln, L, y+2.8); y += 3.2*s; }); }
+        F(8.5); doc.text('Batch: '+T(i.batch), L, y+3.3);
+        if (i.ppb) doc.text(`${fmt(i.ppb)} pz/cj = ${fmt(i.qty*i.ppb)} pz`, R, y+3.3, {align:'right'});
+        y += 4.4*s;
+        if (n < p.items.length-1){ doc.setDrawColor(170); doc.setLineWidth(.1); doc.line(L, y+.6, R, y+.6); y += 1.6; }
+      });
+      y = dash(y+1.5);
+      y = bigTotal(y, 'TOTAL CAJAS', fmt(t.boxes));
+      y = line2(y, 'No. de parte', String(t.parts));
+      y = line2(y, 'Batches', String(t.batches));
+      if (t.pcs) y = line2(y, 'Piezas', fmt(t.pcs));
+      if (p.cap) y = line2(y, 'Capacidad', fmt(p.cap)+' cajas');
+      y = dash(y+1.5);
+      [['Paletizó',p.palletizer],['Surtió',p.picker]].forEach(([l,n])=>{
+        y += 6; doc.setDrawColor(0); doc.setLineWidth(.2); doc.line(L+CW*.3, y, R, y);
+        F(7.5,true); doc.text(T(l)+':', L, y); F(7.5); if(n) doc.text(T(n), L+CW*.3+1, y-1.2); y += 1.5;
+      });
+      return foot(y+2);
+    },
+    drawSummary(ps, cover, ox, oy){
+      setO(ox); doc.setTextColor(0);
+      const isDest = cover.kind==='DESTINO';
+      const closedIso = ps.map(p=> isDest ? p.destClosedAt : p.delClosedAt).find(Boolean);
+      let y = head(isDest?'RESUMEN DE DESTINO':'RESUMEN DE DELIVERY', cover.title, closedIso ? 'Cerrado '+dtS(closedIso) : 'Pendiente '+dtS(), oy);
+      const dests = [...new Set(ps.map(p=>p.dest).filter(Boolean))].join(', ');
+      const dels = [...new Set(ps.map(p=>p.delivery).filter(Boolean))];
+      y = kv(y, isDest ? [['Deliveries', dels.join(', ')||'-'],['Tarimas', String(ps.length)]] : [['Destino', cover.dest||dests||'-'],['Tarimas', String(ps.length)]]);
+      F(7,true); doc.text(isDest?'TARIMA / DELIVERY':'TARIMA / HU', L, y+2); doc.text('CAJAS', R, y+2, {align:'right'}); y += 4;
+      ps.forEach(p=>{
+        const t = totals(p);
+        F(9.5,true); doc.text(T(p.id), L, y+3.4); doc.text(fmt(t.boxes), R, y+3.4, {align:'right'}); y += 4*s;
+        const st = (isDest ? [p.delivery&&('Delivery '+p.delivery), p.hu&&('HU '+p.hu)] : [p.hu&&('HU '+p.hu), p.palletizer]).filter(Boolean).join(' · ');
+        if (st){ F(7.5); doc.text(T(st).slice(0, Math.floor(CW/1.6)), L, y+2.8); y += 3.6*s; }
+        y += .8;
+      });
+      const tb = ps.reduce((a,p)=>a+totals(p).boxes,0), tp = ps.reduce((a,p)=>a+totals(p).pcs,0);
+      y = dash(y+1.5); y = bigTotal(y, 'TOTAL CAJAS', fmt(tb));
+      y = line2(y, 'Tarimas', String(ps.length));
+      { const P=new Set(), B=new Set(); ps.forEach(p=>p.items.forEach(i=>{P.add(i.part); B.add(i.part+'|'+i.batch);})); y = line2(y, 'No. de parte', String(P.size)); y = line2(y, 'Batches', String(B.size)); }
+      if (tp) y = line2(y, 'Piezas', fmt(tp));
+      return foot(y+2);
+    }
+  };
+}
+
+/* Rollo térmico: una página por ticket */
+async function pdfRoll(pallets, cover, W){
+  if (!window.jspdf) return toast('No cargó el generador de PDF; revisa tu conexión');
+  toast('Generando ticket…');
+  const { jsPDF } = window.jspdf, logo = state.settings.logo || await logoPng(true);
+  const list = sortForCover(pallets, cover);
+  const jobs = []; if (cover) jobs.push((k,oy)=>k.drawSummary(list, cover, 0, oy)); list.forEach(p=>jobs.push((k,oy)=>k.drawPallet(p, 0, oy)));
+  const scratch = new jsPDF({unit:'mm', format:[W, 3000]}), ks = ticketKit(scratch, W, logo);
+  const heights = jobs.map(fn=>Math.max(W+1, Math.ceil(fn(ks,0)+4)));
+  const doc = new jsPDF({unit:'mm', format:[W, heights[0]]}), k = ticketKit(doc, W, logo);
+  jobs.forEach((fn,i)=>{ if(i) doc.addPage([W, heights[i]]); fn(k,0); });
+  const base = cover ? (cover.kind==='DESTINO'?'Destino_':'Delivery_')+cover.title : list[0].id;
+  await saveFile(('Ticket_'+base).replace(/[^\w\-]+/g,'_') + '.pdf', doc.output('blob'));
+}
+
+/* Carta: resumen gráfico de hoja completa + tickets acomodados en la hoja */
+async function pdfLetterTickets(pallets, cover){
+  if (!window.jspdf) return toast('No cargó el generador de PDF; revisa tu conexión');
+  toast('Generando PDF…');
+  const { jsPDF } = window.jspdf;
+  const PW = 215.9, PH = 279.4, M = 12, TW = 80, GAP = (PW - 2*M - 2*TW);
+  const tLogo = state.settings.logo || await logoPng(true), cLogo = await logoPng();
+  const list = sortForCover(pallets, cover);
+  const doc = new jsPDF({unit:'mm', format:'letter'});
+  if (cover){ graphicSummary(doc, list, cover, cLogo); doc.addPage(); }
+  // medir tickets
+  const scratch = new jsPDF({unit:'mm', format:[TW, 3000]}), ks = ticketKit(scratch, TW, tLogo);
+  const hts = list.map(p=>Math.ceil(ks.drawPallet(p,0,0)+2));
+  const k = ticketKit(doc, TW, tLogo);
+  const cols = [M + GAP/4, M + TW + GAP*3/4], top = 16, bottom = PH - 14;
+  let col = 0, y = top;
+  const pageHead = ()=>{ doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(120);
+    doc.text(T((cover ? (cover.kind==='DESTINO'?'Destino ':'Delivery ')+cover.title+' · ' : '') + 'Tickets por tarima · recorta por la línea punteada'), M, 10); doc.setTextColor(0); };
+  pageHead();
+  list.forEach((p,i)=>{
+    const h = Math.min(hts[i], bottom-top);
+    if (y + h > bottom){ col++; y = top; if (col > 1){ doc.addPage(); pageHead(); col = 0; } }
+    const ox = cols[col];
+    k.drawPallet(p, ox, y);
+    doc.setLineDashPattern([2,1.5],0); doc.setDrawColor(150); doc.setLineWidth(.2); doc.rect(ox-2, y-1, TW+4, h+1); doc.setLineDashPattern([],0);
+    y += h + 6;
+  });
+  const pages = doc.getNumberOfPages();
+  for (let i=1;i<=pages;i++){ doc.setPage(i); doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(120);
+    doc.text('Calculadora de Tarimas · @cybercadtm', M, PH-6); doc.text(`Página ${i} de ${pages}`, PW-M, PH-6, {align:'right'}); }
+  const base = cover ? (cover.kind==='DESTINO'?'Destino_':'Delivery_')+cover.title : list[0].id;
+  await saveFile(base.replace(/[^\w\-]+/g,'_') + '.pdf', doc.output('blob'));
+}
+
+/* Resumen gráfico en hoja carta completa */
+function graphicSummary(doc, ps, cover, logo){
+  const W = 215.9, H = 279.4, M = 12, CW = W - 2*M;
+  const TEAL=[0,131,140], TEAL2=[63,214,201], GRAY=[110,120,125], DARK=[25,35,40], LIGHT=[236,244,245];
+  const PAL = [[0,131,140],[242,177,52],[94,129,244],[239,91,91],[76,176,125],[160,104,214],[120,144,156]];
+  const isDest = cover.kind==='DESTINO';
+  const closedIso = ps.map(p=> isDest ? p.destClosedAt : p.delClosedAt).find(Boolean);
+  const tot = ps.map(totals), tb = tot.reduce((a,t)=>a+t.boxes,0), tp = tot.reduce((a,t)=>a+t.pcs,0);
+  const dels = [...new Set(ps.map(p=>p.delivery).filter(Boolean))];
+  const dests = [...new Set(ps.map(p=>p.dest).filter(Boolean))];
+  const partsAll = new Map(); ps.forEach(p=>p.items.forEach(i=>partsAll.set(i.part,(partsAll.get(i.part)||0)+i.qty)));
+  const F = (z,b)=>{ doc.setFont('helvetica', b?'bold':'normal'); doc.setFontSize(z); };
+
+  // Encabezado
+  doc.setFillColor(...TEAL); doc.rect(0,0,W,30,'F');
+  if (logo){ try{ const pr = doc.getImageProperties(logo); const h=20, w=Math.min(40,h*pr.width/pr.height);
+    if (state.settings.logo){ doc.setFillColor(255,255,255); doc.roundedRect(M-1,4,w+2,h+2,2,2,'F'); } doc.addImage(logo,'PNG',M,5,w,h); }catch(e){} }
+  doc.setTextColor(255,255,255); F(9,true); doc.text(isDest?'RESUMEN DE DESTINO':'RESUMEN DE DELIVERY', 56, 11);
+  F(22,true); doc.text(T(cover.title), 56, 21);
+  F(8.5); doc.text(T(state.settings.company || 'Control de paletizado'), 56, 26.5);
+  F(10,true); doc.text(closedIso ? 'CERRADO' : 'PENDIENTE', W-M, 13, {align:'right'});
+  F(8.5); doc.text(T(closedIso ? dtS(closedIso) : 'Al '+dtS()), W-M, 19, {align:'right'});
+  doc.text(T(isDest ? (dels.length+' delivery(s)') : ('Destino: '+(cover.dest||dests.join(', ')||'-'))), W-M, 25, {align:'right'});
+  doc.setTextColor(...DARK);
+
+  // KPIs
+  let y = 38;
+  const batchSet = new Set(); ps.forEach(p=>p.items.forEach(i=>batchSet.add(i.part+'|'+i.batch)));
+  const kpis = [['Tarimas', fmt(ps.length)], ['Cajas', fmt(tb)], ['Piezas', tp?fmt(tp):'-'], ['No. de parte', fmt(partsAll.size)], ['Batches', fmt(batchSet.size)],
+    isDest ? ['Deliveries', fmt(dels.length)] : ['Prom. cajas/tarima', ps.length ? fmt(Math.round(tb/ps.length)) : '-']];
+  const kw = (CW - 5*3.5)/6;
+  kpis.forEach(([l,v],i)=>{
+    const x = M + i*(kw+3.5);
+    doc.setFillColor(...LIGHT); doc.roundedRect(x, y, kw, 22, 2.5, 2.5, 'F');
+    doc.setFillColor(...PAL[i%PAL.length]); doc.roundedRect(x, y, 2.2, 22, 1, 1, 'F');
+    F(16,true); doc.setTextColor(...DARK); doc.text(T(v), x+kw/2+1, y+12, {align:'center'});
+    F(6.5); doc.setTextColor(...GRAY); doc.text(T(l).toUpperCase(), x+kw/2+1, y+18, {align:'center'});
+  });
+  doc.setTextColor(...DARK); y += 30;
+
+  // Barra horizontal genérica
+  function hbars(x, y, w, title, rows, opts={}){
+    F(10,true); doc.setTextColor(...DARK); doc.text(T(title), x, y); y += 3;
+    doc.setDrawColor(...LIGHT); doc.setLineWidth(.4); doc.line(x, y, x+w, y); y += 3;
+    if (!rows.length){ F(9); doc.setTextColor(...GRAY); doc.text('Sin datos', x, y+4); return y+8; }
+    const lab = opts.labelW || 34, valW = 16, bw = w - lab - valW - 2;
+    const max = Math.max(...rows.map(r=>r.v), 1), rh = opts.rh || 7;
+    rows.forEach((r,i)=>{
+      F(8.5, true); doc.setTextColor(...DARK); doc.text(T(r.l).slice(0, opts.maxc||18), x, y+rh*.62);
+      if (r.sub){ F(6.5); doc.setTextColor(...GRAY); doc.text(T(r.sub).slice(0,30), x, y+rh*.62+2.8); }
+      const bx = x+lab;
+      doc.setFillColor(244,247,248); doc.roundedRect(bx, y+1, bw, rh-2.4, 1, 1, 'F');
+      doc.setFillColor(...(r.color || PAL[i%PAL.length])); doc.roundedRect(bx, y+1, Math.max(1, bw*r.v/max), rh-2.4, 1, 1, 'F');
+      F(8.5,true); doc.setTextColor(...DARK); doc.text(T(r.vl || fmt(r.v)), x+w, y+rh*.62, {align:'right'});
+      y += rh + (r.sub?1.6:0);
+    });
+    return y + 3;
+  }
+  function section(x, y, w, title, note){
+    F(10,true); doc.setTextColor(...DARK); doc.text(T(title), x, y);
+    if (note){ F(7); doc.setTextColor(...GRAY); doc.text(T(note), x+w, y, {align:'right'}); }
+    doc.setDrawColor(...LIGHT); doc.setLineWidth(.4); doc.line(x, y+3, x+w, y+3); return y + 7;
+  }
+
+  // colores por número de parte (iguales en tarimitas y dona)
+  const parts = [...partsAll.entries()].sort((a,b)=>b[1]-a[1]);
+  const colorOf = part => { const i = parts.findIndex(e=>e[0]===part); return i>=0 && i<6 ? PAL[i] : [170,178,182]; };
+
+  // ===== TARIMITAS =====
+  const MAXT = 24, shownP = ps.slice(0, MAXT);
+  y = section(M, y, CW, 'Tarimas' + (ps.length>MAXT?` (primeras ${MAXT} de ${ps.length})`:''), 'Cada cuadrito es una caja; el color indica el No. de parte');
+  const n = shownP.length;
+  const perRow = n<=3 ? 3 : n<=4 ? 4 : n<=10 ? 5 : n<=12 ? 6 : 8;
+  const gapX = 4, tileW = (CW - gapX*(perRow-1))/perRow;
+  const nRows = Math.ceil(n/perRow);
+  const tileH = Math.min(tileW*1.15, 52, (104 - (nRows-1)*4)/nRows);
+  const COLS = 6;
+  const refMax = Math.max(1, ...shownP.map((p,i)=>Math.max(tot[i].boxes, p.cap||0)));
+  const k = Math.max(1, Math.ceil(refMax / (COLS*12)));      // cajas por cuadrito
+  const rowsRef = Math.ceil(refMax / (COLS*k));
+  const WOOD=[176,124,72], WOOD2=[139,94,52], RED=[220,60,60];
+  shownP.forEach((p,i)=>{
+    const t = tot[ps.indexOf(p)];
+    const tx = M + (i%perRow)*(tileW+gapX), ty = y + Math.floor(i/perRow)*(tileH+4);
+    doc.setFillColor(248,250,251); doc.roundedRect(tx, ty, tileW, tileH, 2, 2, 'F');
+    const labH = 9, baseH = Math.min(4.5, tileH*.08), padX = tileW*.1;
+    const sw = tileW - 2*padX, sh = tileH - labH - baseH - 4;
+    const cell = Math.min(sw/COLS, sh/rowsRef);
+    const stackW = cell*COLS, sx = tx + (tileW-stackW)/2, baseY = ty + tileH - labH - baseH;
+    // base de madera
+    doc.setFillColor(...WOOD); doc.rect(sx-1.2, baseY, stackW+2.4, baseH*.45, 'F');
+    doc.setFillColor(...WOOD2);
+    [0, .5, 1].forEach(f=>{ const bw = Math.max(1.4, stackW*.12); doc.rect(sx-1.2 + f*(stackW+2.4-bw), baseY+baseH*.45, bw, baseH*.55, 'F'); });
+    doc.setFillColor(...WOOD); doc.rect(sx-1.2, baseY+baseH-0.6, stackW+2.4, 0.6, 'F');
+    // cajas
+    const units = []; p.items.forEach(it=>{ const u = Math.max(1, Math.round(it.qty/k)); for(let j=0;j<u;j++) units.push(it.part); });
+    doc.setDrawColor(255,255,255); doc.setLineWidth(Math.min(.35, cell*.08));
+    units.forEach((part,u)=>{
+      const r = Math.floor(u/COLS), c = u%COLS;
+      const bx = sx + c*cell, by = baseY - (r+1)*cell;
+      if (by < ty+1) return;
+      doc.setFillColor(...colorOf(part)); doc.rect(bx, by, cell, cell, 'FD');
+    });
+    // línea de capacidad
+    if (p.cap){
+      const cy = baseY - Math.ceil(p.cap/(COLS*k))*cell;
+      doc.setLineDashPattern([1,.7],0); doc.setDrawColor(...DARK); doc.setLineWidth(.3);
+      doc.line(sx-2, cy, sx+stackW+2, cy); doc.setLineDashPattern([],0);
+    }
+    // etiqueta
+    const pct = p.cap ? Math.round(t.boxes/p.cap*100) : null;
+    F(Math.min(9, tileW*.22), true); doc.setTextColor(...DARK); doc.text(T(p.id), tx+tileW/2, ty+tileH-5, {align:'center'});
+    F(Math.min(7.5, tileW*.18)); doc.setTextColor(...(pct>100?RED:GRAY));
+    doc.text(T(fmt(t.boxes)+' cj'+(pct!=null?' · '+pct+'%':'') + (isDest&&p.delivery&&tileW>30?' · '+p.delivery:'')), tx+tileW/2, ty+tileH-1.6, {align:'center'});
+  });
+  y += nRows*(tileH+4) + 1;
+  F(7); doc.setTextColor(...GRAY);
+  doc.text(T((k>1?`1 cuadrito = ${k} cajas. `:'') + (ps.some(p=>p.cap)?'La línea punteada marca la capacidad de la tarima.':'')), M, y+1);
+  y += 7;
+
+  // ===== DONA (izq) + BARRAS (der) =====
+  if (y > H - 75){ doc.addPage(); y = 16; }
+  const xL = M, wL = CW*0.42, xR = M + CW*0.48, wR = CW*0.52;
+  let yL = section(xL, y, wL, 'Cajas por No. de parte');
+  const top = parts.slice(0,6); const rest = parts.slice(6).reduce((a,e)=>a+e[1],0); if (rest) top.push(['Otras ('+(parts.length-6)+')', rest]);
+  const R = 17, r0 = 10, ccx = xL + R + 1, ccy = yL + R + 1;
+  let a0 = -Math.PI/2;
+  top.forEach(([pt,v],i)=>{
+    const a1 = a0 + 2*Math.PI*v/(tb||1), steps = Math.max(2, Math.ceil((a1-a0)/0.06));
+    doc.setFillColor(...(i<6?PAL[i]:[170,178,182]));
+    for (let s2=0; s2<steps; s2++){
+      const t0 = a0 + (a1-a0)*s2/steps, t1 = a0 + (a1-a0)*(s2+1)/steps + 0.01;
+      doc.triangle(ccx+R*Math.cos(t0), ccy+R*Math.sin(t0), ccx+R*Math.cos(t1), ccy+R*Math.sin(t1), ccx, ccy, 'F');
+    }
+    a0 = a1;
+  });
+  doc.setFillColor(255,255,255); doc.circle(ccx, ccy, r0, 'F');
+  F(11,true); doc.setTextColor(...DARK); doc.text(fmt(tb), ccx, ccy+1.2, {align:'center'});
+  F(5.5); doc.setTextColor(...GRAY); doc.text('CAJAS', ccx, ccy+4.2, {align:'center'});
+  let ly = yL + 2; const lx = xL + 2*R + 6, lw = wL - 2*R - 6;
+  top.forEach(([pt,v],i)=>{
+    doc.setFillColor(...(i<6?PAL[i]:[170,178,182])); doc.roundedRect(lx, ly-2.6, 3, 3, .6, .6, 'F');
+    F(7.5,true); doc.setTextColor(...DARK); doc.text(T(pt).slice(0,16), lx+4.5, ly);
+    F(7.5); doc.text(`${fmt(v)} · ${Math.round(v/(tb||1)*100)}%`, lx+lw, ly, {align:'right'});
+    const d = state.parts[pt] && state.parts[pt].desc; if (d){ F(6); doc.setTextColor(...GRAY); doc.text(T(d).slice(0,30), lx+4.5, ly+2.7); ly += 2.7; }
+    ly += 4.8;
+  });
+  yL = Math.max(ccy + R + 4, ly);
+
+  let rows3, title3;
+  if (isDest){
+    title3 = 'Cajas por delivery';
+    rows3 = dels.concat(ps.some(p=>!p.delivery)?['']:[]).map((d,i)=>{ const sub = ps.filter(p=>(p.delivery||'')===d);
+      return { l: d || 'Sin delivery', sub: sub.length+' tarima(s)', v: sub.reduce((a,p)=>a+totals(p).boxes,0), color: PAL[(i+2)%PAL.length] }; });
+  } else {
+    title3 = 'Tarimas por persona';
+    const pm = new Map(); ps.forEach(p=>{ if(p.palletizer){ const e=pm.get(p.palletizer)||{a:0,b:0}; e.a++; pm.set(p.palletizer,e);} if(p.picker){ const e=pm.get(p.picker)||{a:0,b:0}; e.b++; pm.set(p.picker,e);} });
+    rows3 = [...pm.entries()].map(([nm,e],i)=>({ l:nm, sub:[e.a&&('Paletizó '+e.a), e.b&&('Surtió '+e.b)].filter(Boolean).join(' · '), v:e.a+e.b, color: PAL[(i+2)%PAL.length] }));
+  }
+  const yR = hbars(xR, y, wR, title3, rows3.slice(0,8), {rh: 6.2, labelW: 30, maxc: 16});
+  y = Math.max(yL, yR) + 4;
+
+  // ===== TABLA =====
+  const cols = [{t:'Tarima',x:M+2},{t:'Delivery',x:M+36},{t:'HU',x:M+66},{t:'Paletizó',x:M+94},{t:'Partes',x:W-M-62,r:1},{t:'Batches',x:W-M-42,r:1},{t:'Cajas',x:W-M-22,r:1},{t:'Piezas',x:W-M-2,r:1}];
+  const thead = ()=>{ doc.setFillColor(...LIGHT); doc.rect(M, y, CW, 6.5, 'F'); F(7.5,true); doc.setTextColor(...GRAY);
+    cols.forEach(c=>doc.text(c.t.toUpperCase(), c.x, y+4.4, c.r?{align:'right'}:undefined)); y += 6.5; };
+  if (y > H - 40){ doc.addPage(); y = 16; }
+  y = section(M, y, CW, 'Detalle de tarimas'); thead();
+  ps.forEach((p,i)=>{
+    if (y > H - 20){ doc.addPage(); y = 16; thead(); }
+    const t = tot[i];
+    if (i%2){ doc.setFillColor(248,250,251); doc.rect(M, y, CW, 6, 'F'); }
+    F(8.5); doc.setTextColor(...DARK);
+    [p.id, p.delivery||'-', p.hu||'-', p.palletizer||'-', String(t.parts), String(t.batches), fmt(t.boxes), t.pcs?fmt(t.pcs):'-']
+      .forEach((v,ci)=>doc.text(T(v).slice(0,16), cols[ci].x, y+4.2, cols[ci].r?{align:'right'}:undefined));
+    y += 6;
+  });
+  doc.setDrawColor(...TEAL); doc.setLineWidth(.5); doc.line(M, y, W-M, y); F(9,true); doc.setTextColor(...DARK);
+  doc.text('TOTAL', M+2, y+5); doc.text(fmt(partsAll.size), cols[4].x, y+5, {align:'right'}); doc.text(fmt(batchSet.size), cols[5].x, y+5, {align:'right'}); doc.text(fmt(tb), cols[6].x, y+5, {align:'right'}); doc.text(tp?fmt(tp):'-', cols[7].x, y+5, {align:'right'});
+  doc.setTextColor(...DARK); doc.setLineWidth(.2);
+}
+
+$('pdfPallet').onclick = ()=>{ if(!state.cur.items.length) return toast('La tarima está vacía'); pdfPallets([state.cur], null); };
+
+/* ---------- APP INSTALABLE (fuera de Claude) ---------- */
+if (!inClaudeView && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  let deferred = null;
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferred = e; $('installBtn').hidden = false; });
+  window.addEventListener('appinstalled', ()=>{ $('installBtn').hidden = true; toast('App instalada'); });
+  if (!standalone && /iphone|ipad|ipod/i.test(navigator.userAgent)) $('installBtn').hidden = false;
+  $('installBtn').onclick = async ()=>{
+    if (deferred){ deferred.prompt(); await deferred.userChoice; deferred = null; $('installBtn').hidden = true; }
+    else $('iosHint').classList.add('on');
+  };
+}
+
+renderHeader(); renderParts(); render(); show();
+</script>
+</body>
+</html>
