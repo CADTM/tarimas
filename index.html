@@ -350,7 +350,7 @@ footer b{color:var(--acc2)}
     <div class="scanbox" id="scanLive"><video id="scanVideo" playsinline muted autoplay></video><div class="aim"><i></i></div>
       <button class="btn ghost sm" id="torchBtn" hidden style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55)">🔦 Luz</button></div>
     <div class="hint" id="scanMsg" style="font-size:13px;line-height:1.45">Apunta la cámara al código…</div>
-    <div class="btns" style="margin-top:10px"><span id="scanAlt" hidden><button class="btn ghost" id="scanPhoto" data-ic="camera">Tomar foto</button></span><button class="btn ghost" id="scanCancel">Cancelar</button></div>
+    <div class="btns" style="margin-top:10px"><span id="scanAlt" hidden><button class="btn" id="scanRetry">Reintentar</button><button class="btn ghost" id="scanPhoto" data-ic="camera">Tomar foto</button></span><button class="btn ghost" id="scanCancel">Cancelar</button></div>
   </div>
 </div>
 
@@ -564,9 +564,14 @@ async function startScan(id){
   $('scanTitle').textContent = 'Escanear ' + (scanLabel[id]||'código');
   $('scanAlt').hidden = true; $('scanLive').hidden = false; $('torchBtn').hidden = true;
   $('scanModal').classList.add('on'); scanMsg('Abriendo cámara…');
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return noLiveCamera({name: window.isSecureContext ? 'NoAPI' : 'Insecure'});
   try{
     scanStream = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080} } });
-  }catch(e){ return noLiveCamera(); }
+  }catch(e){
+    if (e && (e.name==='OverconstrainedError' || e.name==='ConstraintNotSatisfiedError')){
+      try{ scanStream = await navigator.mediaDevices.getUserMedia({ audio:false, video:true }); }catch(e2){ return noLiveCamera(e2); }
+    } else return noLiveCamera(e);
+  }
   const v = $('scanVideo'); v.srcObject = scanStream; try{ await v.play(); }catch(e){}
   const track = scanStream.getVideoTracks()[0];
   try{ await track.applyConstraints({ advanced:[{focusMode:'continuous'}] }); }catch(e){}
@@ -594,11 +599,26 @@ async function startScan(id){
     zxReader.decodeFromStream(scanStream, v, res=>{ if (res) done(res.getText()); });
   }catch(e){ scanMsg('No se pudo iniciar el lector. Revisa tu conexión.'); }
 }
-function noLiveCamera(){
-  $('scanLive').hidden = true; $('scanAlt').hidden = false;
-  scanMsg(inClaudeView
-    ? `Dentro de Claude la cámara en vivo está bloqueada. Para escanear en vivo abre la app en <a href="${APP_URL}" target="_blank" rel="noopener" style="color:var(--acc2)">tarimas.cybercadtm.com</a> (los datos de cada lugar se guardan por separado).<br>Aquí puedes usar un lector de pistola o, como último recurso, tomar foto.`
-    : 'No se pudo abrir la cámara. Revisa que la página tenga permiso de cámara en el navegador y vuelve a intentar.');
+function noLiveCamera(err){
+  $('scanLive').hidden = true; $('scanAlt').hidden = false; $('scanRetry').hidden = inClaudeView;
+  const ua = navigator.userAgent, ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  const inApp = /FBAN|FBAV|Instagram|WhatsApp|Line\/|; wv\)|GSA\//i.test(ua);
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const name = err && err.name || '';
+  const link = `<a href="${APP_URL}" target="_blank" rel="noopener" style="color:var(--acc2)">tarimas.cybercadtm.com</a>`;
+  let m;
+  if (inClaudeView) m = `Dentro de Claude la cámara en vivo está bloqueada. Para escanear en vivo abre la app en ${link} (los datos de cada lugar se guardan por separado).<br>Aquí puedes usar un lector de pistola o, como último recurso, tomar foto.`;
+  else if (inApp) m = `Estás en el navegador interno de otra app (WhatsApp, Facebook…), que no deja usar la cámara. Toca los <b>⋮ / compartir</b> y elige <b>Abrir en Chrome</b> o <b>Abrir en Safari</b>.`;
+  else if (name==='Insecure') m = `La página se abrió sin <b>https</b> y el navegador bloquea la cámara. Ábrela como <b>https://tarimas.cybercadtm.com</b> (en GitHub → Settings → Pages marca <b>Enforce HTTPS</b>).`;
+  else if (name==='NotAllowedError' || name==='SecurityError' || name==='PermissionDeniedError'){
+    m = ios
+      ? `El permiso de cámara está bloqueado. En iPhone:<br>• En Safari toca <b>aA</b> (junto a la dirección) → <b>Configuración del sitio web</b> → <b>Cámara: Permitir</b>.<br>• O en <b>Ajustes → Safari → Cámara</b> elige <b>Preguntar</b> o <b>Permitir</b>.${standalone?'<br>• Si usas la app instalada y no aparece la opción, abre la página en Safari una vez, permite la cámara y vuelve a la app.':''}`
+      : `El permiso de cámara está bloqueado. En Android:<br>• En Chrome toca el <b>candado / ícono</b> a la izquierda de la dirección → <b>Permisos</b> → <b>Cámara: Permitir</b>.<br>• Si no aparece, en <b>Ajustes del teléfono → Apps → Chrome → Permisos → Cámara</b> elige <b>Permitir</b>.${standalone?'<br>• En la app instalada: mantén presionado su ícono → <b>Información de la app → Permisos → Cámara</b>.':''}`;
+  }
+  else if (name==='NotFoundError' || name==='DevicesNotFoundError') m = 'No se encontró ninguna cámara en este equipo.';
+  else if (name==='NotReadableError' || name==='TrackStartError') m = 'La cámara está ocupada por otra app (cámara, WhatsApp, videollamada). Ciérrala y toca <b>Reintentar</b>.';
+  else m = 'No se pudo abrir la cámara' + (name?` (${name})`:'') + '. Revisa el permiso de cámara del navegador y toca <b>Reintentar</b>.';
+  scanMsg(m);
 }
 function stopScan(){
   clearInterval(scanLoop); scanLoop = null;
@@ -609,6 +629,7 @@ function stopScan(){
 let torchOn = false;
 $('torchBtn').onclick = async ()=>{ try{ torchOn = !torchOn; await scanStream.getVideoTracks()[0].applyConstraints({advanced:[{torch:torchOn}]}); }catch(e){ toast('Sin linterna'); } };
 $('scanCancel').onclick = stopScan;
+$('scanRetry').onclick = ()=>{ const id = scanTarget; stopScan(); setTimeout(()=>startScan(id), 150); };
 $('scanPhoto').onclick = ()=>{ stopScan(); $('scanFile').click(); };
 $('scanFile').onchange = async e=>{
   const f = e.target.files[0]; e.target.value=''; if(!f || !scanTarget) return;
