@@ -110,6 +110,11 @@ td.n,th.n{text-align:right}
 .addph{width:76px;height:76px;border-radius:8px;border:1px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--mut);font-size:11px;cursor:pointer;gap:4px}
 .addph:hover{border-color:var(--acc);color:var(--acc2)}
 .addph svg{width:22px;height:22px}
+.scanbox{position:relative;border-radius:10px;overflow:hidden;background:#000;aspect-ratio:4/3}
+.scanbox video{width:100%;height:100%;object-fit:cover;display:block}
+.aim{position:absolute;left:10%;right:10%;top:30%;bottom:30%;border:2px solid rgba(63,214,201,.9);border-radius:8px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
+.aim i{position:absolute;left:4%;right:4%;height:2px;background:#ef5b5b;box-shadow:0 0 8px #ef5b5b;animation:laser 1.6s ease-in-out infinite}
+@keyframes laser{0%,100%{top:15%}50%{top:85%}}
 .inbtn{display:flex;gap:6px}
 .inbtn input{flex:1;min-width:0}
 .scanb{flex:none;width:42px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--acc2);cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -277,6 +282,8 @@ footer b{color:var(--acc2)}
     <div class="setlogo"><div class="logo" id="sLogo"></div>
       <div class="btns"><button class="btn sm" id="sUpload" data-ic="camera">Subir logo</button><button class="btn ghost sm" id="sReset">Quitar</button></div></div>
     <div class="row"><div><label>Empresa / área <small>(sale en el PDF)</small></label><input id="sCompany" autocomplete="off" placeholder="Ej. Almacén · Materiales"></div></div>
+    <div class="row"><div><label>Batch al escanear: guardar los últimos</label>
+      <select id="sBatchN"><option value="5">5 caracteres (recomendado)</option><option value="4">4 caracteres</option><option value="6">6 caracteres</option><option value="8">8 caracteres</option><option value="0">Completo</option></select></div></div>
     <div class="row"><div><label>Tamaño de impresión</label>
       <select id="sFmt"><option value="cartaTk">Carta: resumen gráfico + tickets por tarima (recomendado)</option><option value="t80">Rollo térmico 80 mm</option><option value="t58">Rollo térmico 58 mm</option><option value="carta">Carta: una hoja completa por tarima</option></select></div></div>
     <div class="btns"><button class="btn" id="sOk">Guardar</button><button class="btn ghost" id="sCancel">Cancelar</button></div>
@@ -339,10 +346,11 @@ footer b{color:var(--acc2)}
 <!-- Modal escaneo en vivo -->
 <div class="modal" id="scanModal">
   <div class="card" style="max-width:440px">
-    <h2 data-ic="barcode">Escanear código</h2>
-    <video id="scanVideo" playsinline muted style="width:100%;border-radius:10px;background:#000;aspect-ratio:4/3;object-fit:cover"></video>
-    <div class="hint" id="scanMsg">Apunta la cámara al código de barras o QR…</div>
-    <div class="btns" style="margin-top:10px"><button class="btn ghost" id="scanPhoto" data-ic="camera">Mejor tomar foto</button><button class="btn ghost" id="scanCancel">Cancelar</button></div>
+    <h2 data-ic="barcode" id="scanTitleWrap"><span id="scanTitle">Escanear código</span></h2>
+    <div class="scanbox" id="scanLive"><video id="scanVideo" playsinline muted autoplay></video><div class="aim"><i></i></div>
+      <button class="btn ghost sm" id="torchBtn" hidden style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55)">🔦 Luz</button></div>
+    <div class="hint" id="scanMsg" style="font-size:13px;line-height:1.45">Apunta la cámara al código…</div>
+    <div class="btns" style="margin-top:10px"><span id="scanAlt" hidden><button class="btn ghost" id="scanPhoto" data-ic="camera">Tomar foto</button></span><button class="btn ghost" id="scanCancel">Cancelar</button></div>
   </div>
 </div>
 
@@ -392,6 +400,7 @@ const KEY = 'calcTarimas_v2';
 let state = { cur: null, closed: [], seq: 1, settings: { logo: null, company: '' } };
 try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.cur) state = Object.assign(state, s); } catch(e){}
 state.settings = state.settings || { logo:null, company:'' };
+if (state.settings.batchLast == null) state.settings.batchLast = 5;
 if (!state.settings.fmtV2){ state.settings.fmt = 'cartaTk'; state.settings.fmtV2 = true; }
 state.parts = state.parts || {};
 let warnedQuota = false;
@@ -402,7 +411,7 @@ function save(){
 function norm(p){ ['dest','delivery','hu','palletizer','picker'].forEach(f=>p[f]=p[f]||''); p.photos=p.photos||[]; return p; }
 function newPallet(){
   const id = 'TARIMA_' + state.seq; state.seq++;
-  return norm({ id, cap: state.cur ? state.cur.cap : 0, palletizer: state.cur ? state.cur.palletizer : '', picker: state.cur ? state.cur.picker : '', items: [], opened: new Date().toISOString() });
+  return norm({ id, cap: state.cur ? state.cur.cap : 0, dest: state.cur ? state.cur.dest : '', delivery: state.cur ? state.cur.delivery : '', palletizer: state.cur ? state.cur.palletizer : '', picker: state.cur ? state.cur.picker : '', items: [], opened: new Date().toISOString() });
 }
 if (!state.cur) state.cur = newPallet();
 norm(state.cur); state.closed.forEach(norm);
@@ -460,7 +469,7 @@ function renderHeader(){
   $('hCompany').textContent = state.settings.company || 'Paletizado · Control de cajas';
 }
 let tmpLogo = null;
-$('openSettings').onclick = ()=>{ tmpLogo = state.settings.logo; $('sLogo').innerHTML = logoHtml(); $('sCompany').value = state.settings.company||''; $('sFmt').value = state.settings.fmt; $('settings').classList.add('on'); };
+$('openSettings').onclick = ()=>{ tmpLogo = state.settings.logo; $('sLogo').innerHTML = logoHtml(); $('sCompany').value = state.settings.company||''; $('sBatchN').value = String(batchLastN()); $('sFmt').value = state.settings.fmt; $('settings').classList.add('on'); };
 $('sUpload').onclick = ()=> $('logoInput').click();
 $('sReset').onclick = ()=>{ tmpLogo = null; $('sLogo').innerHTML = ICON.pallet; };
 $('logoInput').onchange = async e=>{
@@ -468,7 +477,7 @@ $('logoInput').onchange = async e=>{
   try{ tmpLogo = await shrink(f, 300, 'image/png'); $('sLogo').innerHTML = `<img src="${tmpLogo}" alt="Logo">`; }catch(err){ toast('No se pudo leer la imagen'); }
 };
 $('sCancel').onclick = ()=> $('settings').classList.remove('on');
-$('sOk').onclick = ()=>{ state.settings.logo = tmpLogo; state.settings.company = $('sCompany').value.trim(); state.settings.fmt = $('sFmt').value; $('settings').classList.remove('on'); renderHeader(); save(); };
+$('sOk').onclick = ()=>{ state.settings.logo = tmpLogo; state.settings.company = $('sCompany').value.trim(); state.settings.batchLast = parseInt($('sBatchN').value,10); state.settings.fmt = $('sFmt').value; $('settings').classList.remove('on'); renderHeader(); save(); };
 
 /* ---------- FOTOS ---------- */
 function shrink(file, max, type='image/jpeg', q=.72){
@@ -505,55 +514,100 @@ $('photoInput').onchange = async e=>{
 $('lightbox').onclick = ()=> $('lightbox').classList.remove('on');
 bindPhotos($('curPhotos'), ()=>state.cur.photos, render);
 
-/* ---------- ESCANEO (batch, parte, HU) ---------- */
+/* ---------- ESCANEO EN VIVO (batch, parte, HU) ---------- */
 const inClaudeView = !!(window.claude && typeof window.claude.use === 'function');
-let scanTarget = null, zxReader = null, zxLoading = null;
+const APP_URL = 'https://tarimas.cybercadtm.com/';
+let scanTarget = null, zxReader = null, zxLoading = null, scanStream = null, scanLoop = null, scanDone = false;
 function loadZXing(){
   if (window.ZXing) return Promise.resolve();
   if (!zxLoading) zxLoading = new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.23.0/umd/index.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
   return zxLoading;
 }
-function zxHints(){ const h = new Map(); h.set(ZXing.DecodeHintType.TRY_HARDER, true); return h; }
+function zxHints(hard){
+  const h = new Map(), F = ZXing.BarcodeFormat;
+  h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [F.CODE_128, F.CODE_39, F.CODE_93, F.EAN_13, F.EAN_8, F.UPC_A, F.ITF, F.CODABAR, F.QR_CODE, F.DATA_MATRIX]);
+  if (hard) h.set(ZXing.DecodeHintType.TRY_HARDER, true);
+  return h;
+}
+function batchLastN(){ const n = parseInt(state.settings.batchLast,10); return isNaN(n) ? 5 : n; }
 function cleanCode(txt, id){
   let t = String(txt||'').replace(/[\x00-\x1f]/g, m=> m==='\x1d' ? '|' : '').trim();
   if (id==='fBatch'){
     const m = t.match(/\(10\)([^(|]+)/) || t.match(/(?:^|\|)10([^|]+)/); // GS1: lote (10)
     if (m && (t.includes('(10)') || t.includes('|'))) t = m[1];
+    t = t.replace(/\s+/g,'');
+    const n = batchLastN(); if (n > 0 && t.length > n) t = t.slice(-n);   // últimos N del batch
   }
   return t.toUpperCase();
 }
 function putScan(id, txt){
   const v = cleanCode(txt, id); if (!v){ toast('Código vacío'); return; }
   const el = $(id); el.value = v; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true}));
-  try{ navigator.vibrate && navigator.vibrate(60); }catch(e){}
-  toast('Escaneado: '+v);
+  try{ navigator.vibrate && navigator.vibrate(80); }catch(e){}
+  beep(); toast('Escaneado: '+v);
   const next = {fPart:'fBatch', fBatch:'fQty'}[id]; if (next) $(next).focus(); else el.blur();
 }
+function beep(){ try{ const a = new (window.AudioContext||window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 1800; g.gain.value = .08; o.connect(g); g.connect(a.destination); o.start(); setTimeout(()=>{ o.stop(); a.close(); }, 90); }catch(e){} }
 async function decodeImageFile(file){
   const url = await shrink(file, 1600, 'image/jpeg', .9);
   if ('BarcodeDetector' in window){
     try{ const img = new Image(); img.src = url; await img.decode(); const r = await new BarcodeDetector().detect(img); if (r && r[0]) return r[0].rawValue; }catch(e){}
   }
   await loadZXing();
-  const rd = new ZXing.BrowserMultiFormatReader(zxHints());
+  const rd = new ZXing.BrowserMultiFormatReader(zxHints(true));
   const res = await rd.decodeFromImageUrl(url); return res.getText();
 }
+const scanLabel = { fBatch:'el batch', fPart:'el número de parte', iHu:'el HU' };
+function scanMsg(t){ $('scanMsg').innerHTML = t; }
 async function startScan(id){
-  scanTarget = id;
-  if (!inClaudeView && navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+  scanTarget = id; scanDone = false;
+  $('scanTitle').textContent = 'Escanear ' + (scanLabel[id]||'código');
+  $('scanAlt').hidden = true; $('scanLive').hidden = false; $('torchBtn').hidden = true;
+  $('scanModal').classList.add('on'); scanMsg('Abriendo cámara…');
+  try{
+    scanStream = await navigator.mediaDevices.getUserMedia({ audio:false, video:{ facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080} } });
+  }catch(e){ return noLiveCamera(); }
+  const v = $('scanVideo'); v.srcObject = scanStream; try{ await v.play(); }catch(e){}
+  const track = scanStream.getVideoTracks()[0];
+  try{ await track.applyConstraints({ advanced:[{focusMode:'continuous'}] }); }catch(e){}
+  try{ const caps = track.getCapabilities ? track.getCapabilities() : {}; if (caps.torch) $('torchBtn').hidden = false; }catch(e){}
+  scanMsg(id==='fBatch' && batchLastN()>0 ? `Apunta al código; se lee solo y se guardan los <b>últimos ${batchLastN()}</b> del batch.` : 'Apunta al código; se lee solo.');
+  const done = text => { if (scanDone || !text) return; scanDone = true; stopScan(); putScan(id, text); };
+  // 1) Detector nativo (Chrome Android): rápido
+  if ('BarcodeDetector' in window){
     try{
-      await loadZXing();
-      $('scanMsg').textContent = 'Apunta la cámara al código de barras o QR…'; $('scanModal').classList.add('on');
-      zxReader = new ZXing.BrowserMultiFormatReader(zxHints());
-      await zxReader.decodeFromConstraints({video:{facingMode:'environment'}}, $('scanVideo'), (res)=>{
-        if (res){ const t = res.getText(); stopScan(); putScan(id, t); }
-      });
+      const formats = await BarcodeDetector.getSupportedFormats();
+      const det = new BarcodeDetector({ formats });
+      let busy = false;
+      scanLoop = setInterval(async ()=>{
+        if (busy || scanDone || v.readyState < 2) return; busy = true;
+        try{ const r = await det.detect(v); if (r && r[0]) done(r[0].rawValue); }catch(e){}
+        busy = false;
+      }, 120);
       return;
-    }catch(e){ stopScan(); }
+    }catch(e){}
   }
-  $('scanFile').click(); // dentro de Claude: tomar foto del código
+  // 2) ZXing (iPhone y otros)
+  try{
+    await loadZXing();
+    zxReader = new ZXing.BrowserMultiFormatReader(zxHints(false), 150);
+    zxReader.decodeFromStream(scanStream, v, res=>{ if (res) done(res.getText()); });
+  }catch(e){ scanMsg('No se pudo iniciar el lector. Revisa tu conexión.'); }
 }
-function stopScan(){ try{ zxReader && zxReader.reset(); }catch(e){} zxReader = null; $('scanModal').classList.remove('on'); }
+function noLiveCamera(){
+  $('scanLive').hidden = true; $('scanAlt').hidden = false;
+  scanMsg(inClaudeView
+    ? `Dentro de Claude la cámara en vivo está bloqueada. Para escanear en vivo abre la app en <a href="${APP_URL}" target="_blank" rel="noopener" style="color:var(--acc2)">tarimas.cybercadtm.com</a> (los datos de cada lugar se guardan por separado).<br>Aquí puedes usar un lector de pistola o, como último recurso, tomar foto.`
+    : 'No se pudo abrir la cámara. Revisa que la página tenga permiso de cámara en el navegador y vuelve a intentar.');
+}
+function stopScan(){
+  clearInterval(scanLoop); scanLoop = null;
+  try{ zxReader && zxReader.reset(); }catch(e){} zxReader = null;
+  if (scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream = null; }
+  $('scanVideo').srcObject = null; $('scanModal').classList.remove('on');
+}
+let torchOn = false;
+$('torchBtn').onclick = async ()=>{ try{ torchOn = !torchOn; await scanStream.getVideoTracks()[0].applyConstraints({advanced:[{torch:torchOn}]}); }catch(e){ toast('Sin linterna'); } };
 $('scanCancel').onclick = stopScan;
 $('scanPhoto').onclick = ()=>{ stopScan(); $('scanFile').click(); };
 $('scanFile').onchange = async e=>{
@@ -564,7 +618,7 @@ $('scanFile').onchange = async e=>{
   finally{ btn && btn.classList.remove('busy'); }
 };
 document.querySelectorAll('[data-scan]').forEach(b=> b.onclick = ()=> startScan(b.dataset.scan));
-// Lector de código USB/Bluetooth (teclado): Enter avanza al siguiente campo
+// Lector de pistola USB/Bluetooth (teclado): Enter avanza al siguiente campo
 $('fPart').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); applyPart && applyPart(); $('fBatch').focus(); } });
 $('fBatch').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); $('fBatch').value = cleanCode($('fBatch').value,'fBatch'); if(!$('fQty').value) $('fQty').focus(); else $('addForm').requestSubmit(); } });
 
@@ -674,6 +728,28 @@ FIELDS.forEach(([el,f])=>{
   const up = f!=='palletizer' && f!=='picker';
   $(el).addEventListener('input', ()=>{ state.cur[f] = up ? $(el).value.trim().toUpperCase() : $(el).value.trim(); save(); });
   $(el).addEventListener('blur', render);
+});
+// Al cambiar Delivery o Destino: ofrecer cerrar el anterior (sus tarimas cerradas pendientes)
+let prevVal = {};
+['iDel','iDest'].forEach(id=> $(id).addEventListener('focus', ()=>{ prevVal[id] = state.cur[id==='iDel'?'delivery':'dest']; }));
+$('iDel').addEventListener('change', async ()=>{
+  const old = prevVal.iDel, now = state.cur.delivery; prevVal.iDel = now;
+  if (!old || old === now) return;
+  const idx = state.closed.map((p,k)=>k).filter(k=>!isDone(state.closed[k]) && state.closed[k].delivery === old);
+  if (!idx.length) return;
+  if (await ask(`Cambiaste de delivery. ¿Cerrar el delivery ${old} con ${idx.length} tarima(s)? La numeración vuelve a TARIMA_1.`)){
+    const t = new Date().toISOString(); idx.forEach(k=>state.closed[k].delClosedAt = t); resetNumbering(); render(); toast(`Delivery ${old} cerrado`);
+  }
+});
+$('iDest').addEventListener('change', async ()=>{
+  const old = prevVal.iDest, now = state.cur.dest; prevVal.iDest = now;
+  if (!old || old === now) return;
+  const idx = state.closed.map((p,k)=>k).filter(k=>!isDone(state.closed[k]) && state.closed[k].dest === old);
+  if (!idx.length) return;
+  const dl = new Set(idx.map(k=>state.closed[k].delivery).filter(Boolean)).size;
+  if (await ask(`Cambiaste de destino. ¿Cerrar el destino ${old} (${dl} delivery(s), ${idx.length} tarima(s))? La numeración vuelve a TARIMA_1.`)){
+    const t = new Date().toISOString(); idx.forEach(k=>{ const p=state.closed[k]; p.destClosedAt = t; if(!p.delClosedAt) p.delClosedAt = t; }); resetNumbering(); render(); toast(`Destino ${old} cerrado`);
+  }
 });
 function meta(p){ return [p.dest&&('Destino: '+p.dest), p.delivery&&('Delivery: '+p.delivery), p.hu&&('HU: '+p.hu), p.palletizer&&('Paletizó: '+p.palletizer), p.picker&&('Surtió: '+p.picker)].filter(Boolean); }
 
