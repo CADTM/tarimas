@@ -1,8 +1,8 @@
 // Calculadora de Tarimas · @cybercadtm — funciona sin internet una vez abierta
-const CACHE = 'tarimas-v4';
+const CACHE = 'tarimas-v5';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-180.png'];
 const CDN = [
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+  './vendor/jspdf-2.5.1.umd.min.js',
   'https://cdn.jsdelivr.net/npm/@zxing/library@0.23.0/umd/index.min.js'
 ];
 
