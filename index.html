@@ -35,16 +35,21 @@ main{flex:1;display:grid;grid-template-columns:380px 1fr;gap:16px;padding:16px;m
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
 .card h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--acc2);margin:0 0 10px;display:flex;align-items:center;gap:6px}
 /* calculadora */
-.screen{background:#081014;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:right;font-family:'JetBrains Mono',monospace;margin-bottom:10px}
-.screen .expr{color:var(--mut);font-size:13px;min-height:18px;word-break:break-all}
-.screen .val{font-size:34px;font-weight:700;word-break:break-all}
-.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.keys button{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;padding:0;min-height:64px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);cursor:pointer;transition:.1s}
-.keys button:active{transform:scale(.96)}
-.keys .op{color:var(--acc2)}
-.keys .fn{color:var(--warn);font-size:21px}
-.keys .eq{background:var(--acc);color:#fff;border-color:var(--acc)}
-.keys .wide{grid-column:span 2}
+.screen{background:#081014;border:1px solid var(--line);border-radius:14px;padding:14px 14px 10px;text-align:right;font-family:'JetBrains Mono',monospace;margin-bottom:12px;min-height:118px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+.screen .expr{font-size:44px;font-weight:600;line-height:1.15;white-space:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;color:var(--txt)}
+.screen .expr::-webkit-scrollbar{display:none}
+.screen .val{font-size:22px;color:var(--mut);min-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .12s}
+.screen.err .val{color:var(--bad)}
+.screen.pop .expr{animation:pop .22s ease-out}
+@keyframes pop{from{transform:translateY(14px);opacity:.4}to{transform:none;opacity:1}}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.keys button{position:relative;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:600;padding:0;min-height:66px;border-radius:18px;border:0;background:var(--panel2);color:var(--txt);cursor:pointer;transition:transform .06s,filter .06s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.keys button.pressed{transform:scale(.94);filter:brightness(1.35)}
+.keys .op{color:var(--acc2);background:#173a40}
+.keys .fn{color:var(--warn);font-size:22px;background:#2a2f26}
+.keys .eq{background:var(--acc);color:#fff;font-size:30px}
+.keys .rip{position:absolute;border-radius:50%;background:rgba(255,255,255,.28);transform:scale(0);animation:rip .4s ease-out forwards;pointer-events:none}
+@keyframes rip{to{transform:scale(2.6);opacity:0}}
 .send{margin-top:10px;width:100%}
 .hist{margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--mut);max-height:110px;overflow:auto}
 .hist div{padding:3px 0;border-bottom:1px dashed var(--line);cursor:pointer}
@@ -157,10 +162,10 @@ footer b{color:var(--acc2)}
   <!-- CALCULADORA -->
   <section class="card">
     <h2 data-ic="calc">Calculadora</h2>
-    <div class="screen"><div class="expr" id="expr"></div><div class="val" id="val">0</div></div>
+    <div class="screen" id="screen"><div class="expr" id="expr">0</div><div class="val" id="val"></div></div>
     <div class="keys" id="keys">
-      <button class="fn" data-k="C">C</button>
-      <button class="fn" data-k="back">⌫</button>
+      <button class="fn" data-k="C">AC</button>
+      <button class="fn" data-k="()">( )</button>
       <button class="fn" data-k="%">%</button>
       <button class="op" data-k="/">÷</button>
       <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
@@ -169,7 +174,8 @@ footer b{color:var(--acc2)}
       <button class="op" data-k="-">−</button>
       <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
       <button class="op" data-k="+">+</button>
-      <button class="wide" data-k="0">0</button><button data-k=".">.</button>
+      <button data-k="0">0</button><button data-k=".">.</button>
+      <button class="fn" data-k="back" title="Mantén presionado para borrar todo">⌫</button>
       <button class="eq" data-k="=">=</button>
     </div>
     <button class="btn send" id="useCalc" style="justify-content:center">↓ Usar resultado como cantidad de cajas</button>
@@ -423,41 +429,116 @@ function ask(msg){ return new Promise(res=>{ $('cMsg').textContent=msg; $('confi
 const fmt = n => Number(n).toLocaleString('es-MX');
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-/* ---------- CALCULADORA ---------- */
+/* ---------- CALCULADORA (estilo Android) ---------- */
 let expr = '', last = '0', justEval = false, hist = [];
-function show(){ $('expr').textContent = expr; $('val').textContent = expr ? (preview() ?? last) : last; }
-function preview(){ try{ const r = calc(expr); return isFinite(r) ? round(r) : null; }catch(e){ return null; } }
+const OPS = '+-*/';
+const fmtNum = s => { const [i,d] = s.split('.'); const ii = i.replace(/\B(?=(\d{3})+(?!\d))/g, ','); return d!==undefined ? ii+'.'+d : ii; };
+const pretty = e => e.replace(/\d+(\.\d*)?/g, m=>fmtNum(m)).replace(/\*/g,'×').replace(/\//g,'÷').replace(/-/g,'−');
+const fmtRes = n => Number(n).toLocaleString('en-US',{maximumFractionDigits:10});
 function round(n){ return Math.round(n*1e10)/1e10; }
-function calc(e){ if(!/^[0-9+\-*/.%() ]+$/.test(e)) throw 0; e = e.replace(/(\d+(\.\d+)?)%/g,'($1/100)'); return Function('"use strict";return ('+e+')')(); }
+function prep(e){
+  // cerrar paréntesis abiertos, quitar operador final, multiplicación implícita y porcentajes
+  e = e.replace(/[+\-*/(]+$/,'');
+  const open = (e.match(/\(/g)||[]).length - (e.match(/\)/g)||[]).length; if (open>0) e += ')'.repeat(open);
+  e = e.replace(/(\d|\)|%)\(/g,'$1*(').replace(/\)(\d)/g,')*$1').replace(/%(\d)/g,'%*$1');
+  e = e.replace(/(\d+(\.\d+)?)%/g,'($1/100)').replace(/\)%/g,')/100');
+  return e;
+}
+function calc(e){ e = prep(e); if(!e) return NaN; if(!/^[0-9+\-*/.() ]+$/.test(e)) throw 0; return Function('"use strict";return ('+e+')')(); }
+function preview(){ try{ const r = calc(expr); return isFinite(r) ? round(r) : null; }catch(e){ return null; } }
+function fitExpr(){
+  const el = $('expr'); let z = 44; el.style.fontSize = z+'px';
+  while (z > 24 && el.scrollWidth > el.clientWidth){ z -= 2; el.style.fontSize = z+'px'; }
+  el.scrollLeft = el.scrollWidth;
+}
+function show(){
+  const sc = $('screen'); sc.classList.remove('err');
+  if (!expr){ $('expr').textContent = last==='Error' ? 'Error' : fmtRes(last); $('val').textContent = ''; if(last==='Error') sc.classList.add('err'); return fitExpr(); }
+  $('expr').textContent = pretty(expr);
+  const hasOp = /[+\-*/%(]/.test(expr.replace(/^-/,''));
+  const pv = hasOp ? preview() : null;
+  $('val').textContent = pv!=null ? '= '+fmtRes(pv) : '';
+  fitExpr();
+}
+function curNumber(){ const m = expr.match(/(\d*\.?\d*)$/); return m ? m[1] : ''; }
 function press(k){
   if (k==='C'){ expr=''; last='0'; justEval=false; return show(); }
-  if (k==='back'){ expr = expr.slice(0,-1); return show(); }
+  if (k==='back'){ if (justEval){ expr=''; last='0'; justEval=false; } else expr = expr.slice(0,-1); return show(); }
   if (k==='='){
     if(!expr) return;
-    try{ const r = round(calc(expr)); if(!isFinite(r)) throw 0;
-      hist.unshift(expr.replace(/\*/g,'×').replace(/\//g,'÷')+' = '+r); hist=hist.slice(0,15);
-      last = String(r); expr=''; justEval=true; renderHist();
-    }catch(e){ last='Error'; expr=''; }
+    let r; try{ r = round(calc(expr)); }catch(e){ r = NaN; }
+    if (!isFinite(r)){ $('val').textContent = (r===Infinity||r===-Infinity) ? 'No se puede dividir entre 0' : 'Expresión no válida'; $('screen').classList.add('err'); return; }
+    hist.unshift(pretty(expr)+' = '+fmtRes(r)); hist=hist.slice(0,15); renderHist();
+    last = String(r); expr=''; justEval=true; show();
+    const sc=$('screen'); sc.classList.remove('pop'); void sc.offsetWidth; sc.classList.add('pop');
+    return;
+  }
+  const lastCh = expr.slice(-1);
+  if (/\d/.test(k)){
+    if (justEval){ expr=''; justEval=false; }
+    if (lastCh===')' || lastCh==='%') expr += '*';
+    if (curNumber()==='0') expr = expr.slice(0,-1);   // evita 007
+    expr += k; return show();
+  }
+  if (k==='.'){
+    if (justEval){ expr=''; justEval=false; }
+    if (curNumber().includes('.')) return;
+    if (lastCh===')' || lastCh==='%') expr += '*';
+    expr += /\d$/.test(expr) ? '.' : '0.'; return show();
+  }
+  if (k==='()'){
+    if (justEval){ expr = last==='Error' ? '' : last; justEval=false; }
+    const open = (expr.match(/\(/g)||[]).length - (expr.match(/\)/g)||[]).length;
+    if (open>0 && /[\d)%]$/.test(expr)) expr += ')';
+    else { if (/[\d)%]$/.test(expr)) expr += '*'; expr += '('; }
     return show();
   }
-  const isOp = '+-*/%'.includes(k);
-  if (justEval){ expr = isOp ? (last==='Error'?'0':last) : ''; justEval=false; }
-  if (isOp && k!=='%' && /[+\-*/]$/.test(expr)) expr = expr.slice(0,-1);
-  if (isOp && !expr && k!=='-') expr = last==='Error'?'0':last;
-  expr += k; show();
+  if (k==='%'){
+    if (justEval){ expr = last==='Error' ? '' : last; justEval=false; }
+    if (/[\d)]$/.test(expr)) expr += '%'; return show();
+  }
+  if (OPS.includes(k)){
+    if (justEval){ expr = last==='Error' ? '0' : last; justEval=false; }
+    if (!expr){ if (k==='-') expr='-'; return show(); }
+    if (lastCh==='(' ){ if (k==='-') expr += '-'; return show(); }
+    if (OPS.includes(lastCh)){
+      if (k==='-' && (lastCh==='*'||lastCh==='/')) { expr += '-'; return show(); }
+      expr = expr.replace(/[+\-*/]+$/,''); if (!expr) return show();
+    }
+    expr += k; return show();
+  }
 }
 function renderHist(){ $('hist').innerHTML = hist.map(h=>`<div>${h}</div>`).join(''); }
-$('hist').onclick = e => { if(e.target.tagName==='DIV' && e.target.parentNode.id==='hist'){ last = e.target.textContent.split('= ').pop(); expr=''; justEval=true; show(); } };
-$('keys').onclick = e => { const k = e.target.dataset.k; if(k) press(k); };
+$('hist').onclick = e => { if(e.target.tagName==='DIV' && e.target.parentNode.id==='hist'){ last = e.target.textContent.split('= ').pop().replace(/,/g,''); expr=''; justEval=true; show(); } };
+// Respuesta inmediata al tocar (sin esperar el "click"), vibración corta y onda
+(function(){
+  let holdT = null, rptT = null;
+  const vib = ()=>{ try{ navigator.vibrate && navigator.vibrate(8); }catch(e){} };
+  const ripple = (b, ev)=>{ const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height), s = document.createElement('span');
+    s.className='rip'; s.style.width=s.style.height=d+'px'; s.style.left=(ev.clientX-r.left-d/2)+'px'; s.style.top=(ev.clientY-r.top-d/2)+'px';
+    b.appendChild(s); setTimeout(()=>s.remove(), 420); };
+  const release = b=>{ b && b.classList.remove('pressed'); clearTimeout(holdT); clearInterval(rptT); holdT = rptT = null; };
+  $('keys').addEventListener('pointerdown', ev=>{
+    const b = ev.target.closest('button[data-k]'); if(!b) return;
+    ev.preventDefault(); b.classList.add('pressed'); ripple(b, ev); vib();
+    const k = b.dataset.k; press(k);
+    if (k==='back'){ // mantener: borra todo
+      holdT = setTimeout(()=>{ press('C'); vib(); }, 550);
+    }
+    const up = ()=>{ release(b); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  });
+  $('keys').addEventListener('click', e=>{ if (e.detail===0){ const b=e.target.closest('button[data-k]'); if(b) press(b.dataset.k); } }); // teclado/lectores
+})();
 document.addEventListener('keydown', e=>{
-  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if (['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return;
   if (document.querySelector('.modal.on')) { if(e.key==='Escape') document.querySelectorAll('.modal.on').forEach(m=>m.classList.remove('on')); return; }
-  const m = {Enter:'=','=':'=',Backspace:'back',Escape:'C',Delete:'C'};
+  const m = {Enter:'=','=':'=',Backspace:'back',Escape:'C',Delete:'C','(':'()',')':'()',',':'.','x':'*','X':'*'};
   const k = m[e.key] || ('0123456789+-*/.%'.includes(e.key) ? e.key : null);
-  if (k){ e.preventDefault(); press(k); }
+  if (k){ e.preventDefault(); press(k); const b=document.querySelector(`#keys [data-k="${k}"]`); if(b){ b.classList.add('pressed'); setTimeout(()=>b.classList.remove('pressed'),90); } }
 });
 $('useCalc').onclick = ()=>{
-  const v = expr ? preview() : Number(last);
+  const v = expr ? preview() : Number(last);  // resultado en vivo o el último
   if (v==null || isNaN(v) || v<=0){ return toast('No hay un resultado válido'); }
   $('fQty').value = Math.round(v); $('fQty').focus(); toast('Cantidad: '+Math.round(v)+' cajas');
 };
